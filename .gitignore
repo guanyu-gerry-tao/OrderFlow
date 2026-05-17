@@ -1,0 +1,49 @@
+# Local machine
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local agent instructions and private planning
+AGENTS.override.md
+docs/internal/
+Archive/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Java / Spring Boot
+.gradle/
+build/
+target/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# Node / frontend
+node_modules/
+dist/
+.next/
+coverage/
+playwright-report/
+test-results/
+
+# Docker / local runtime
+docker-data/
+.docker/
+tmp/
+logs/
+*.log
+
+# Database and benchmark artifacts
+*.db
+*.sqlite
+*.sqlite3
+benchmarks/results/
+benchmarks/tmp/
