@@ -69,7 +69,7 @@ The most recent local run produced:
 | Mode | Repeated-submit attempts | Duplicate orders | Concurrent attempts | Oversell count |
 | --- | ---: | ---: | ---: | ---: |
 | improved | 20 | 0 | 200 | 0 |
-| baseline | 20 | 19 | 200 | 160 |
+| baseline | 20 | 19 | 200 | 166 |
 
 These numbers are local synthetic benchmark evidence, not production metrics.
 
