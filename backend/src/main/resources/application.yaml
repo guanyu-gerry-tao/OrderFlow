@@ -5,6 +5,13 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/orderflow}
     username: ${SPRING_DATASOURCE_USERNAME:orderflow}
     password: ${SPRING_DATASOURCE_PASSWORD:orderflow}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:250ms}
+      repositories:
+        enabled: false
   flyway:
     enabled: true
   jpa:
@@ -13,3 +20,10 @@ spring:
     open-in-view: false
 server:
   port: ${SERVER_PORT:8080}
+orderflow:
+  idempotency:
+    mode: ${ORDERFLOW_IDEMPOTENCY_MODE:strict}
+    cache: ${ORDERFLOW_IDEMPOTENCY_CACHE:redis}
+    cache-ttl: ${ORDERFLOW_IDEMPOTENCY_CACHE_TTL:10m}
+  inventory:
+    strategy: ${ORDERFLOW_INVENTORY_STRATEGY:optimistic-locking}

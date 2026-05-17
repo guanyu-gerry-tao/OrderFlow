@@ -20,6 +20,9 @@ public class InventoryItem {
     @Column(name = "available_quantity", nullable = false)
     private int availableQuantity;
 
+    @Column(nullable = false)
+    private int version;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -38,6 +41,7 @@ public class InventoryItem {
     public InventoryItem(String sku, int availableQuantity) {
         this.sku = sku;
         this.availableQuantity = availableQuantity;
+        this.version = 0;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
     }
@@ -61,12 +65,22 @@ public class InventoryItem {
     }
 
     /**
+     * Returns the current inventory version used by optimistic reservation.
+     *
+     * @return inventory version
+     */
+    public int getVersion() {
+        return version;
+    }
+
+    /**
      * Replaces the available quantity for seed data.
      *
      * @param availableQuantity new available quantity
      */
     public void replaceAvailableQuantity(int availableQuantity) {
         this.availableQuantity = availableQuantity;
+        this.version = 0;
         this.updatedAt = Instant.now();
     }
 
@@ -81,6 +95,7 @@ public class InventoryItem {
         }
 
         availableQuantity = availableQuantity - quantity;
+        version = version + 1;
         updatedAt = Instant.now();
     }
 }

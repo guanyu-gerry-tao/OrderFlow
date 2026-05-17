@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -30,14 +31,18 @@ public class OrderController {
     }
 
     /**
-     * Creates an order and runs the M1 synchronous happy path.
+     * Creates an order and runs the synchronous workflow with optional idempotency replay.
      *
      * @param request order creation request
+     * @param idempotencyKey optional idempotency key
      * @return created order response
      */
     @PostMapping
-    public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
-        OrderResponse orderResponse = orderWorkflowService.createOrder(request);
+    public ResponseEntity<OrderResponse> createOrder(
+            @Valid @RequestBody CreateOrderRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
+    ) {
+        OrderResponse orderResponse = orderWorkflowService.createOrder(request, idempotencyKey);
         return ResponseEntity
                 .created(URI.create("/api/orders/" + orderResponse.orderId()))
                 .body(orderResponse);
