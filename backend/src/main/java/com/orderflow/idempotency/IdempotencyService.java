@@ -15,6 +15,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Coordinates request hashing, durable records, Redis cache lookup, and per-key locking.
@@ -143,7 +145,7 @@ public class IdempotencyService {
         );
 
         idempotencyRecordRepository.save(idempotencyRecord);
-        idempotencyCache.put(idempotencyKey, new CachedIdempotencyResponse(requestHash, response));
+        cacheAfterCommit(idempotencyKey, new CachedIdempotencyResponse(requestHash, response));
     }
 
     /**
@@ -166,6 +168,20 @@ public class IdempotencyService {
         if (!storedHash.equals(requestHash)) {
             throw new WorkflowConflictException("Idempotency key was already used with a different request body");
         }
+    }
+
+    private void cacheAfterCommit(String idempotencyKey, CachedIdempotencyResponse cachedResponse) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            idempotencyCache.put(idempotencyKey, cachedResponse);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                idempotencyCache.put(idempotencyKey, cachedResponse);
+            }
+        });
     }
 
     private String serializeResponse(OrderResponse response) {
