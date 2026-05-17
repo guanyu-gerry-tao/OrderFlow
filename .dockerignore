@@ -1,0 +1,10 @@
+.git
+.gradle
+build
+backend/build
+Archive
+docs/internal
+docker-data
+logs
+tmp
+*.log

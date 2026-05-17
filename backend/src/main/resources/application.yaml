@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: orderflow-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/orderflow}
+    username: ${SPRING_DATASOURCE_USERNAME:orderflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:orderflow}
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+server:
+  port: ${SERVER_PORT:8080}
