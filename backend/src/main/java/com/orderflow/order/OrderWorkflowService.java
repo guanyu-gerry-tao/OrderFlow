@@ -187,6 +187,25 @@ public class OrderWorkflowService {
         return new TimelineResponse(events);
     }
 
+    /**
+     * Lists orders for the operations console with lightweight status and text filters.
+     *
+     * @param status optional order status filter
+     * @param search optional customer, order id, or SKU search text
+     * @return matching order responses
+     */
+    @Transactional(readOnly = true)
+    public List<OrderResponse> listOrders(OrderStatus status, String search) {
+        String normalizedSearch = normalizeSearch(search);
+
+        return orderRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .filter(order -> status == null || order.getStatus() == status)
+                .filter(order -> matchesSearch(order, normalizedSearch))
+                .map(this::toOrderResponse)
+                .toList();
+    }
+
     private void transition(OrderEntity order, int sequenceNumber, OrderStatus nextStatus, String message) {
         OrderStatus previousStatus = order.getStatus();
         orderStateMachine.validateTransition(previousStatus, nextStatus);
@@ -218,5 +237,31 @@ public class OrderWorkflowService {
                 auditLog.getCreatedAt(),
                 auditLog.getSequenceNumber()
         );
+    }
+
+    private String normalizeSearch(String search) {
+        if (search == null || search.isBlank()) {
+            return "";
+        }
+
+        return search.trim().toLowerCase();
+    }
+
+    private boolean matchesSearch(OrderEntity order, String search) {
+        if (search.isBlank()) {
+            return true;
+        }
+
+        // Match the common console lookup fields without introducing a separate read model yet.
+        if (order.getId().toString().toLowerCase().contains(search)) {
+            return true;
+        }
+        if (order.getCustomerId().toLowerCase().contains(search)) {
+            return true;
+        }
+
+        return order.getItems()
+                .stream()
+                .anyMatch(item -> item.getSku().toLowerCase().contains(search));
     }
 }

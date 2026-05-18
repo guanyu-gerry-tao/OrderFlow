@@ -11,6 +11,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> {
 
     /**
+     * Counts events by processing status.
+     *
+     * @param status event status
+     * @return matching event count
+     */
+    long countByStatus(OutboxEventStatus status);
+
+    /**
      * Finds events by processing status.
      *
      * @param status event status

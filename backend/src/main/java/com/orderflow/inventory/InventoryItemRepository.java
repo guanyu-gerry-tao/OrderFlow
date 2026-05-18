@@ -1,6 +1,7 @@
 package com.orderflow.inventory;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -19,6 +20,13 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, St
      * @return matching inventory if it exists
      */
     Optional<InventoryItem> findBySku(String sku);
+
+    /**
+     * Lists inventory rows for dashboard display.
+     *
+     * @return inventory rows sorted by SKU
+     */
+    List<InventoryItem> findAllByOrderBySkuAsc();
 
     /**
      * Reserves inventory only when the row still has the expected version and enough stock.

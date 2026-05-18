@@ -48,3 +48,7 @@ orderflow:
     cache-ttl: ${ORDERFLOW_IDEMPOTENCY_CACHE_TTL:10m}
   inventory:
     strategy: ${ORDERFLOW_INVENTORY_STRATEGY:optimistic-locking}
+  console:
+    allowed-origin: ${ORDERFLOW_CONSOLE_ALLOWED_ORIGIN:http://localhost:5173}
+  realtime:
+    snapshot-interval: ${ORDERFLOW_REALTIME_SNAPSHOT_INTERVAL:2s}
