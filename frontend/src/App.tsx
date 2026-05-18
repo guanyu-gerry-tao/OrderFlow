@@ -17,6 +17,12 @@ import { OrderTimelinePage } from "./pages/OrderTimelinePage";
 import { ServiceHealthPage } from "./pages/ServiceHealthPage";
 
 type ViewId = "orders" | "timeline" | "inventory" | "failed-events" | "health";
+type SectionKey = "orders" | "inventory" | "deadLetters" | "health";
+type SectionErrors = Record<SectionKey, string>;
+
+interface RefreshOptions {
+  includeHealth?: boolean;
+}
 
 const views: Array<{ id: ViewId; label: string }> = [
   { id: "orders", label: "Orders" },
@@ -38,6 +44,7 @@ export function App() {
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [sectionErrors, setSectionErrors] = useState<SectionErrors>(emptySectionErrors);
   const [createError, setCreateError] = useState("");
   const [seedError, setSeedError] = useState("");
   const [retryError, setRetryError] = useState("");
@@ -51,23 +58,68 @@ export function App() {
     [orders, selectedOrderId]
   );
 
-  const refreshConsole = useCallback(async () => {
+  const refreshConsole = useCallback(async ({ includeHealth = true }: RefreshOptions = {}) => {
     setLoadError("");
-    const [ordersResponse, inventoryResponse, deadLettersResponse, healthResponse] = await Promise.all([
+    const nextErrors = emptySectionErrors();
+    let loadedSections = 0;
+    const [
+      ordersResponse,
+      inventoryResponse,
+      deadLettersResponse,
+      healthResponse
+    ] = await Promise.allSettled([
       apiClient.listOrders(statusFilter, search),
       apiClient.listInventory(),
       apiClient.listDeadLetters(),
-      apiClient.getHealth()
+      includeHealth ? apiClient.getHealth() : Promise.resolve(undefined)
     ]);
 
-    setOrders(ordersResponse);
-    setInventory(inventoryResponse);
-    setDeadLetters(deadLettersResponse);
-    setHealth(healthResponse);
-    if (selectedOrderId === "" && ordersResponse.length > 0) {
-      setSelectedOrderId(ordersResponse[0].orderId);
+    if (ordersResponse.status === "fulfilled") {
+      loadedSections += 1;
+      setOrders(ordersResponse.value);
+      if (selectedOrderId === "" && ordersResponse.value.length > 0) {
+        setSelectedOrderId(ordersResponse.value[0].orderId);
+      }
+    } else {
+      nextErrors.orders = errorMessage(ordersResponse.reason, "Orders endpoint failed.");
+    }
+
+    if (inventoryResponse.status === "fulfilled") {
+      loadedSections += 1;
+      setInventory(inventoryResponse.value);
+    } else {
+      nextErrors.inventory = errorMessage(inventoryResponse.reason, "Inventory endpoint failed.");
+    }
+
+    if (deadLettersResponse.status === "fulfilled") {
+      loadedSections += 1;
+      setDeadLetters(deadLettersResponse.value);
+    } else {
+      nextErrors.deadLetters = errorMessage(deadLettersResponse.reason, "Failed events endpoint failed.");
+    }
+
+    if (includeHealth) {
+      if (healthResponse.status === "fulfilled") {
+        loadedSections += 1;
+        setHealth(healthResponse.value);
+      } else {
+        nextErrors.health = errorMessage(healthResponse.reason, "Health endpoint failed.");
+      }
+    }
+
+    setSectionErrors(nextErrors);
+    if (loadedSections === 0) {
+      throw new Error(firstSectionError(nextErrors));
     }
   }, [search, selectedOrderId, statusFilter]);
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      await refreshConsole();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to load console data.");
+    }
+  }, [refreshConsole]);
 
   useEffect(() => {
     let isMounted = true;
@@ -116,7 +168,7 @@ export function App() {
     eventSource.addEventListener("snapshot", (event) => {
       const snapshot = apiClient.parseRealtimeSnapshot(event as MessageEvent<string>);
       setHealth(snapshot.health);
-      refreshConsole().catch(() => setRealtimeConnected(false));
+      refreshConsole({ includeHealth: false }).catch(() => setRealtimeConnected(false));
     });
 
     return () => eventSource.close();
@@ -179,7 +231,7 @@ export function App() {
   }
 
   if (loadError !== "") {
-    return <ErrorState title="Backend unavailable" message={loadError} onRetry={refreshConsole} />;
+    return <ErrorState title="Backend unavailable" message={loadError} onRetry={handleRefresh} />;
   }
 
   return (
@@ -214,7 +266,7 @@ export function App() {
               {health?.eventMode ?? "outbox-kafka"} mode · {queryKeys.health}
             </p>
           </div>
-          <button type="button" onClick={refreshConsole}>
+          <button type="button" onClick={handleRefresh}>
             Refresh
           </button>
         </header>
@@ -226,6 +278,7 @@ export function App() {
             statusFilter={statusFilter}
             search={search}
             createError={createError}
+            loadError={sectionErrors.orders}
             isCreating={isCreating}
             onStatusFilterChange={setStatusFilter}
             onSearchChange={setSearch}
@@ -234,6 +287,7 @@ export function App() {
               setActiveView("timeline");
             }}
             onCreateOrder={createOrder}
+            onRefresh={handleRefresh}
           />
         ) : null}
 
@@ -245,8 +299,10 @@ export function App() {
           <InventoryDashboardPage
             inventory={inventory}
             seedError={seedError}
+            loadError={sectionErrors.inventory}
             isSeeding={isSeeding}
             onSeedInventory={seedInventory}
+            onRefresh={handleRefresh}
           />
         ) : null}
 
@@ -256,13 +312,37 @@ export function App() {
             retryingId={retryingId}
             retryError={retryError}
             onRetry={retryDeadLetter}
+            loadError={sectionErrors.deadLetters}
+            onRefresh={handleRefresh}
           />
         ) : null}
 
         {activeView === "health" ? (
-          <ServiceHealthPage health={health} realtimeConnected={realtimeConnected} />
+          <ServiceHealthPage
+            health={health}
+            realtimeConnected={realtimeConnected}
+            loadError={sectionErrors.health}
+            onRefresh={handleRefresh}
+          />
         ) : null}
       </section>
     </main>
   );
+}
+
+function emptySectionErrors(): SectionErrors {
+  return {
+    orders: "",
+    inventory: "",
+    deadLetters: "",
+    health: ""
+  };
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function firstSectionError(errors: SectionErrors): string {
+  return Object.values(errors).find((message) => message !== "") ?? "Unable to load console data.";
 }

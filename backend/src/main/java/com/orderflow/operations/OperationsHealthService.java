@@ -11,15 +11,19 @@ import com.orderflow.outbox.OutboxEventStatus;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Builds the service health read model used by the operations console.
  */
 @Service
 public class OperationsHealthService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(OperationsHealthService.class);
 
     private final OrderRepository orderRepository;
     private final InventoryItemRepository inventoryItemRepository;
@@ -59,35 +63,62 @@ public class OperationsHealthService {
      *
      * @return operations health response
      */
-    @Transactional(readOnly = true)
     public OperationsHealthResponse getHealth() {
+        try {
+            Map<String, Long> outboxCounts = emptyOutboxCounts();
+            for (OutboxEventStatus status : OutboxEventStatus.values()) {
+                outboxCounts.put(status.name(), outboxEventRepository.countByStatus(status));
+            }
+
+            long retryCount = outboxEventRepository.findAll()
+                    .stream()
+                    .mapToLong(OutboxEvent::getRetryCount)
+                    .sum();
+            long openDlqCount = deadLetterEventRepository.countByStatus(DeadLetterStatus.OPEN);
+            long replayedDlqCount = deadLetterEventRepository.countByStatus(DeadLetterStatus.REPLAYED);
+
+            return new OperationsHealthResponse(
+                    Instant.now(),
+                    "UP",
+                    "UP",
+                    eventMode.getModeName(),
+                    eventBroker,
+                    kafkaStatus(),
+                    orderRepository.count(),
+                    inventoryItemRepository.count(),
+                    outboxCounts,
+                    deadLetterEventRepository.count(),
+                    openDlqCount,
+                    replayedDlqCount,
+                    retryCount
+            );
+        } catch (DataAccessException ignored) {
+            LOGGER.warn("Operations health degraded because database counters could not be loaded", ignored);
+            return new OperationsHealthResponse(
+                    Instant.now(),
+                    "DEGRADED",
+                    "DOWN",
+                    eventMode.getModeName(),
+                    eventBroker,
+                    kafkaStatus(),
+                    0,
+                    0,
+                    emptyOutboxCounts(),
+                    0,
+                    0,
+                    0,
+                    0
+            );
+        }
+    }
+
+    private Map<String, Long> emptyOutboxCounts() {
         Map<String, Long> outboxCounts = new LinkedHashMap<>();
         for (OutboxEventStatus status : OutboxEventStatus.values()) {
-            outboxCounts.put(status.name(), outboxEventRepository.countByStatus(status));
+            outboxCounts.put(status.name(), 0L);
         }
 
-        long retryCount = outboxEventRepository.findAll()
-                .stream()
-                .mapToLong(OutboxEvent::getRetryCount)
-                .sum();
-        long openDlqCount = deadLetterEventRepository.countByStatus(DeadLetterStatus.OPEN);
-        long replayedDlqCount = deadLetterEventRepository.countByStatus(DeadLetterStatus.REPLAYED);
-
-        return new OperationsHealthResponse(
-                Instant.now(),
-                "UP",
-                "UP",
-                eventMode.getModeName(),
-                eventBroker,
-                kafkaStatus(),
-                orderRepository.count(),
-                inventoryItemRepository.count(),
-                outboxCounts,
-                deadLetterEventRepository.count(),
-                openDlqCount,
-                replayedDlqCount,
-                retryCount
-        );
+        return outboxCounts;
     }
 
     private String kafkaStatus() {

@@ -1,19 +1,23 @@
 import type { FormEvent } from "react";
 import type { InventoryItemResponse } from "../api/types";
-import { EmptyState } from "../components/StateViews";
+import { EmptyState, ErrorState } from "../components/StateViews";
 
 interface InventoryDashboardPageProps {
   inventory: InventoryItemResponse[];
   seedError: string;
+  loadError: string;
   isSeeding: boolean;
   onSeedInventory: (payload: { sku: string; availableQuantity: number }) => Promise<void>;
+  onRefresh: () => void;
 }
 
 export function InventoryDashboardPage({
   inventory,
   seedError,
+  loadError,
   isSeeding,
-  onSeedInventory
+  onSeedInventory,
+  onRefresh
 }: InventoryDashboardPageProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +58,9 @@ export function InventoryDashboardPage({
           <h2>Inventory dashboard</h2>
           <p>Available units and optimistic-locking versions.</p>
         </div>
-        {inventory.length === 0 ? (
+        {loadError !== "" ? (
+          <ErrorState title="Inventory unavailable" message={loadError} onRetry={onRefresh} />
+        ) : inventory.length === 0 ? (
           <EmptyState title="No inventory" body="Seed a SKU before creating orders." />
         ) : (
           <div className="inventory-list">

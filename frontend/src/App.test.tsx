@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -40,13 +40,34 @@ class TestEventSource {
     this.listeners.set(type, listener);
   }
 
+  emit(type: string, data?: unknown) {
+    const listener = this.listeners.get(type);
+    const event = new MessageEvent(type, {
+      data: data === undefined ? "" : JSON.stringify(data)
+    });
+
+    if (typeof listener === "function") {
+      listener(event);
+      return;
+    }
+
+    listener?.handleEvent(event);
+  }
+
   close() {
     return undefined;
   }
 }
 
+let failingEndpoint = "";
+let deadLetterRequestCount = 0;
+let healthRequestCount = 0;
+
 describe("App", () => {
   beforeEach(() => {
+    failingEndpoint = "";
+    deadLetterRequestCount = 0;
+    healthRequestCount = 0;
     vi.stubGlobal("EventSource", TestEventSource);
     vi.stubGlobal("fetch", vi.fn(mockFetch));
   });
@@ -82,11 +103,84 @@ describe("App", () => {
       );
     });
   });
+
+  it("keeps available console data visible when one section API fails", async () => {
+    failingEndpoint = "dlq";
+
+    render(<App />);
+
+    expect(await screen.findByText("customer-console-101")).toBeInTheDocument();
+    expect(screen.queryByText("Backend unavailable")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Failed events" }));
+
+    expect(await screen.findByText("Failed events unavailable")).toBeInTheDocument();
+    expect(screen.getByText("DLQ endpoint failed")).toBeInTheDocument();
+  });
+
+  it("keeps the global retry view stable when every section remains unavailable", async () => {
+    failingEndpoint = "all";
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend unavailable")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Backend unavailable")).toBeInTheDocument();
+    expect(screen.getByText("All endpoints failed")).toBeInTheDocument();
+  });
+
+  it("reflects SSE connection and snapshot events in the health view", async () => {
+    render(<App />);
+
+    await screen.findByText("customer-console-101");
+    await userEvent.click(screen.getByRole("button", { name: "Health" }));
+
+    const eventSource = TestEventSource.instances[0];
+    await act(async () => {
+      eventSource.emit("open");
+    });
+
+    expect(await screen.findByText("SSE connected")).toBeInTheDocument();
+
+    await act(async () => {
+      eventSource.emit("error");
+    });
+
+    expect(await screen.findByText("SSE reconnecting")).toBeInTheDocument();
+
+    const deadLetterRequestsBeforeSnapshot = deadLetterRequestCount;
+    const healthRequestsBeforeSnapshot = healthRequestCount;
+    await act(async () => {
+      eventSource.emit("snapshot", {
+        generatedAt: "2026-05-17T10:01:00Z",
+        health: {
+          ...sampleHealth,
+          eventMode: "direct"
+        }
+      });
+    });
+
+    await waitFor(() => {
+      expect(deadLetterRequestCount).toBeGreaterThan(deadLetterRequestsBeforeSnapshot);
+    });
+    expect(healthRequestCount).toBe(healthRequestsBeforeSnapshot);
+    expect(await screen.findByText("direct mode · health")).toBeInTheDocument();
+  });
 });
 
 async function mockFetch(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input);
   const method = init?.method ?? "GET";
+
+  if (failingEndpoint === "all" && url.includes("/api/")) {
+    return jsonResponse({ message: "All endpoints failed" }, 503);
+  }
+
+  if (failingEndpoint === "dlq" && url.includes("/api/dlq")) {
+    return jsonResponse({ message: "DLQ endpoint failed" }, 503);
+  }
 
   if (url.includes("/api/orders/11111111-1111-1111-1111-111111111111/timeline")) {
     return jsonResponse({
@@ -119,6 +213,7 @@ async function mockFetch(input: RequestInfo | URL, init?: RequestInit) {
     return jsonResponse(undefined, 202);
   }
   if (url.includes("/api/dlq")) {
+    deadLetterRequestCount += 1;
     return jsonResponse([
       {
         id: "dlq-1",
@@ -134,6 +229,7 @@ async function mockFetch(input: RequestInfo | URL, init?: RequestInit) {
     ]);
   }
   if (url.includes("/api/operations/health")) {
+    healthRequestCount += 1;
     return jsonResponse(sampleHealth);
   }
 

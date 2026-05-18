@@ -1,18 +1,22 @@
 import type { DeadLetterEventResponse } from "../api/types";
-import { EmptyState, StatusPill } from "../components/StateViews";
+import { EmptyState, ErrorState, StatusPill } from "../components/StateViews";
 
 interface FailedEventsPageProps {
   deadLetters: DeadLetterEventResponse[];
   retryingId: string;
   retryError: string;
   onRetry: (deadLetterEventId: string) => Promise<void>;
+  loadError: string;
+  onRefresh: () => void;
 }
 
 export function FailedEventsPage({
   deadLetters,
   retryingId,
   retryError,
-  onRetry
+  onRetry,
+  loadError,
+  onRefresh
 }: FailedEventsPageProps) {
   return (
     <section className="panel full-panel">
@@ -23,7 +27,9 @@ export function FailedEventsPage({
 
       {retryError !== "" ? <p className="form-error">{retryError}</p> : null}
 
-      {deadLetters.length === 0 ? (
+      {loadError !== "" ? (
+        <ErrorState title="Failed events unavailable" message={loadError} onRetry={onRefresh} />
+      ) : deadLetters.length === 0 ? (
         <EmptyState title="No failed events" body="The DLQ is empty for the current backend state." />
       ) : (
         <div className="data-table dlq-table">

@@ -1,6 +1,6 @@
 import type { FormEvent } from "react";
 import type { OrderResponse, OrderStatus } from "../api/types";
-import { EmptyState, StatusPill } from "../components/StateViews";
+import { EmptyState, ErrorState, StatusPill } from "../components/StateViews";
 
 interface OrdersPageProps {
   orders: OrderResponse[];
@@ -8,6 +8,7 @@ interface OrdersPageProps {
   statusFilter: OrderStatus | "";
   search: string;
   createError: string;
+  loadError: string;
   isCreating: boolean;
   onStatusFilterChange: (status: OrderStatus | "") => void;
   onSearchChange: (search: string) => void;
@@ -18,6 +19,7 @@ interface OrdersPageProps {
     quantity: number;
     idempotencyKey: string;
   }) => Promise<void>;
+  onRefresh: () => void;
 }
 
 const orderStatuses: Array<OrderStatus | ""> = [
@@ -36,11 +38,13 @@ export function OrdersPage({
   statusFilter,
   search,
   createError,
+  loadError,
   isCreating,
   onStatusFilterChange,
   onSearchChange,
   onSelectOrder,
-  onCreateOrder
+  onCreateOrder,
+  onRefresh
 }: OrdersPageProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -112,7 +116,9 @@ export function OrdersPage({
           </div>
         </div>
 
-        {orders.length === 0 ? (
+        {loadError !== "" ? (
+          <ErrorState title="Orders unavailable" message={loadError} onRetry={onRefresh} />
+        ) : orders.length === 0 ? (
           <EmptyState title="No orders found" body="Create an order or clear the filters." />
         ) : (
           <div className="data-table">

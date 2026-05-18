@@ -1,12 +1,27 @@
 import type { OperationsHealthResponse } from "../api/types";
-import { EmptyState, StatusPill } from "../components/StateViews";
+import { EmptyState, ErrorState, StatusPill } from "../components/StateViews";
 
 interface ServiceHealthPageProps {
   health?: OperationsHealthResponse;
   realtimeConnected: boolean;
+  loadError: string;
+  onRefresh: () => void;
 }
 
-export function ServiceHealthPage({ health, realtimeConnected }: ServiceHealthPageProps) {
+export function ServiceHealthPage({
+  health,
+  realtimeConnected,
+  loadError,
+  onRefresh
+}: ServiceHealthPageProps) {
+  if (loadError !== "" && health === undefined) {
+    return (
+      <section className="panel full-panel">
+        <ErrorState title="Health unavailable" message={loadError} onRetry={onRefresh} />
+      </section>
+    );
+  }
+
   if (health === undefined) {
     return (
       <section className="panel full-panel">
@@ -28,9 +43,9 @@ export function ServiceHealthPage({ health, realtimeConnected }: ServiceHealthPa
       </div>
 
       <div className="metric-grid">
-        <Metric label="Backend" value={health.backendStatus} tone="good" />
-        <Metric label="Database" value={health.databaseStatus} tone="good" />
-        <Metric label="Kafka" value={health.kafkaStatus} tone="neutral" />
+        <Metric label="Backend" value={health.backendStatus} tone={componentTone(health.backendStatus)} />
+        <Metric label="Database" value={health.databaseStatus} tone={componentTone(health.databaseStatus)} />
+        <Metric label="Kafka" value={health.kafkaStatus} tone={componentTone(health.kafkaStatus)} />
         <Metric label="Event mode" value={health.eventMode} tone="neutral" />
         <Metric label="Orders" value={String(health.orderCount)} tone="neutral" />
         <Metric label="Inventory SKUs" value={String(health.inventorySkuCount)} tone="neutral" />
@@ -65,4 +80,18 @@ function Metric({ label, value, tone }: MetricProps) {
       <StatusPill tone={tone}>{value}</StatusPill>
     </div>
   );
+}
+
+function componentTone(value: string): MetricProps["tone"] {
+  if (value === "UP") {
+    return "good";
+  }
+  if (value === "DOWN") {
+    return "danger";
+  }
+  if (value === "NOT_USED") {
+    return "neutral";
+  }
+
+  return "warn";
 }
