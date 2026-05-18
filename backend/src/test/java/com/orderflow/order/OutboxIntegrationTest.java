@@ -48,6 +48,8 @@ class OutboxIntegrationTest {
         registry.add("orderflow.events.broker", () -> "recording");
         registry.add("orderflow.events.publisher-initial-delay", () -> "600000");
         registry.add("orderflow.events.publisher-interval", () -> "600000");
+        registry.add("orderflow.events.consumer-retry-initial-delay", () -> "600000");
+        registry.add("orderflow.events.consumer-retry-interval", () -> "600000");
     }
 
     @Autowired

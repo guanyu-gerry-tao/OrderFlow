@@ -14,23 +14,23 @@ public class OutboxPublisher {
 
     private final OutboxEventRepository outboxEventRepository;
     private final EventBroker eventBroker;
-    private final RetryPolicy retryPolicy;
+    private final OutboxFailureHandler outboxFailureHandler;
 
     /**
      * Creates the outbox publisher.
      *
      * @param outboxEventRepository outbox repository
      * @param eventBroker configured broker
-     * @param retryPolicy retry policy
+     * @param outboxFailureHandler publish failure handler
      */
     public OutboxPublisher(
             OutboxEventRepository outboxEventRepository,
             EventBroker eventBroker,
-            RetryPolicy retryPolicy
+            OutboxFailureHandler outboxFailureHandler
     ) {
         this.outboxEventRepository = outboxEventRepository;
         this.eventBroker = eventBroker;
-        this.retryPolicy = retryPolicy;
+        this.outboxFailureHandler = outboxFailureHandler;
     }
 
     /**
@@ -54,8 +54,7 @@ public class OutboxPublisher {
                 event.markPublished();
                 publishedEvents++;
             } catch (RuntimeException exception) {
-                int nextRetryCount = event.getRetryCount() + 1;
-                event.recordRetry(exception.getMessage(), retryPolicy.backoffFor(nextRetryCount));
+                outboxFailureHandler.recordPublishFailure(event, exception);
             }
         }
 

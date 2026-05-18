@@ -10,7 +10,6 @@ import com.orderflow.outbox.OutboxEventRepository;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -57,10 +56,15 @@ public class DeadLetterReplayService {
      *
      * @param deadLetterEventId DLQ id
      */
-    @Transactional
     public void retry(UUID deadLetterEventId) {
         UUID outboxEventId = requeue(deadLetterEventId);
-        orderEventConsumer.processEventById(outboxEventId);
+        boolean replayed = orderEventConsumer.processEventById(outboxEventId);
+
+        if (!replayed) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "DLQ replay failed; event remains open");
+        }
+
+        markReplayed(deadLetterEventId);
     }
 
     private UUID requeue(UUID deadLetterEventId) {
@@ -79,9 +83,16 @@ public class DeadLetterReplayService {
                 order.getStatus(),
                 "Manual retry replayed DLQ event"
         );
-        deadLetterEvent.markReplayed();
         outboxEvent.requeueForManualRetry();
+        outboxEventRepository.save(outboxEvent);
         return outboxEvent.getId();
+    }
+
+    private void markReplayed(UUID deadLetterEventId) {
+        DeadLetterEvent deadLetterEvent = deadLetterEventRepository.findById(deadLetterEventId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "DLQ event not found"));
+        deadLetterEvent.markReplayed();
+        deadLetterEventRepository.save(deadLetterEvent);
     }
 
     private int nextSequenceNumber(UUID orderId) {

@@ -35,6 +35,10 @@ orderflow:
     mode: ${ORDERFLOW_EVENT_MODE:outbox-kafka}
     broker: ${ORDERFLOW_EVENT_BROKER:kafka}
     topic: ${ORDERFLOW_EVENT_TOPIC:orderflow.order-events}
+    publisher-initial-delay: ${ORDERFLOW_EVENT_PUBLISHER_INITIAL_DELAY:2s}
+    publisher-interval: ${ORDERFLOW_EVENT_PUBLISHER_INTERVAL:2s}
+    consumer-retry-initial-delay: ${ORDERFLOW_EVENT_CONSUMER_RETRY_INITIAL_DELAY:2s}
+    consumer-retry-interval: ${ORDERFLOW_EVENT_CONSUMER_RETRY_INTERVAL:2s}
     retry:
       max-attempts: ${ORDERFLOW_EVENT_RETRY_MAX_ATTEMPTS:3}
       initial-backoff: ${ORDERFLOW_EVENT_RETRY_INITIAL_BACKOFF:5s}

@@ -117,11 +117,47 @@ public class DeadLetterEvent {
     }
 
     /**
+     * Returns the retry count at the time this event entered DLQ.
+     *
+     * @return retry count
+     */
+    public int getRetryCount() {
+        return retryCount;
+    }
+
+    /**
      * Returns the last failure message.
      *
      * @return last error
      */
     public String getLastError() {
         return lastError;
+    }
+
+    /**
+     * Returns the DLQ status.
+     *
+     * @return DLQ status
+     */
+    public DeadLetterStatus getStatus() {
+        return status;
+    }
+
+    /**
+     * Returns when the DLQ record was created.
+     *
+     * @return creation timestamp
+     */
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    /**
+     * Returns when the DLQ record was replayed.
+     *
+     * @return replay timestamp
+     */
+    public Instant getReplayedAt() {
+        return replayedAt;
     }
 }

@@ -64,7 +64,11 @@ public class DeadLetterController {
                 event.getOutboxEventId(),
                 event.getAggregateId(),
                 event.getEventType(),
-                event.getLastError()
+                event.getRetryCount(),
+                event.getLastError(),
+                event.getStatus(),
+                event.getCreatedAt(),
+                event.getReplayedAt()
         );
     }
 }

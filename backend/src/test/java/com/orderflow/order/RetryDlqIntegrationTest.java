@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.orderflow.audit.OrderAuditLogRepository;
 import com.orderflow.dlq.DeadLetterEvent;
 import com.orderflow.dlq.DeadLetterEventRepository;
+import com.orderflow.dlq.DeadLetterStatus;
 import com.orderflow.events.OrderEventConsumer;
+import com.orderflow.events.OrderEventRetryScheduler;
 import com.orderflow.events.OrderEventType;
 import com.orderflow.events.RecordingEventBroker;
 import com.orderflow.failure.FailureInjectionService;
@@ -51,6 +53,8 @@ class RetryDlqIntegrationTest {
         registry.add("orderflow.events.broker", () -> "recording");
         registry.add("orderflow.events.publisher-initial-delay", () -> "600000");
         registry.add("orderflow.events.publisher-interval", () -> "600000");
+        registry.add("orderflow.events.consumer-retry-initial-delay", () -> "600000");
+        registry.add("orderflow.events.consumer-retry-interval", () -> "600000");
         registry.add("orderflow.events.retry.initial-backoff", () -> "0ms");
         registry.add("orderflow.events.retry.max-attempts", () -> "2");
     }
@@ -89,6 +93,9 @@ class RetryDlqIntegrationTest {
     private OrderEventConsumer orderEventConsumer;
 
     @Autowired
+    private OrderEventRetryScheduler orderEventRetryScheduler;
+
+    @Autowired
     private FailureInjectionService failureInjectionService;
 
     @BeforeEach
@@ -105,7 +112,7 @@ class RetryDlqIntegrationTest {
     }
 
     @Test
-    void publishFailureRecordsRetryMetadataWithoutDroppingOutboxEvent() {
+    void publishFailureRetriesThenMovesEventToDlq() {
         restTemplate.postForEntity("/api/inventory/seed", new SeedInventoryRequest("SKU-PUBLISH-FAIL", 5), Void.class);
         CreateOrderRequest createOrderRequest = new CreateOrderRequest(
                 "customer-publish-fail",
@@ -114,15 +121,27 @@ class RetryDlqIntegrationTest {
         restTemplate.postForEntity("/api/orders", createOrderRequest, OrderResponse.class);
         recordingEventBroker.failNextPublish("Injected publish failure");
 
-        int publishedEvents = outboxPublisher.publishDueEvents();
-        OutboxEvent event = outboxEventRepository.findAll().get(0);
+        int firstPublishAttempt = outboxPublisher.publishDueEvents();
+        OutboxEvent retriedEvent = outboxEventRepository.findAll().get(0);
 
-        assertThat(publishedEvents).isZero();
-        assertThat(event.getStatus()).isEqualTo(OutboxEventStatus.PENDING);
-        assertThat(event.getRetryCount()).isEqualTo(1);
-        assertThat(event.getNextAttemptAt()).isNotNull();
-        assertThat(event.getLastError()).contains("Injected publish failure");
+        assertThat(firstPublishAttempt).isZero();
+        assertThat(retriedEvent.getStatus()).isEqualTo(OutboxEventStatus.PENDING);
+        assertThat(retriedEvent.getRetryCount()).isEqualTo(1);
+        assertThat(retriedEvent.getNextAttemptAt()).isNotNull();
+        assertThat(retriedEvent.getLastError()).contains("Injected publish failure");
         assertThat(recordingEventBroker.publishedMessages()).isEmpty();
+
+        recordingEventBroker.failNextPublish("Injected publish failure again");
+
+        int secondPublishAttempt = outboxPublisher.publishDueEvents();
+        OutboxEvent deadLetteredEvent = outboxEventRepository.findAll().get(0);
+
+        assertThat(secondPublishAttempt).isZero();
+        assertThat(deadLetteredEvent.getStatus()).isEqualTo(OutboxEventStatus.DLQ);
+        assertThat(deadLetteredEvent.getRetryCount()).isEqualTo(2);
+        assertThat(deadLetterEventRepository.findAll()).hasSize(1);
+        assertThat(deadLetterEventRepository.findAll().get(0).getLastError())
+                .contains("Injected publish failure again");
     }
 
     @Test
@@ -138,6 +157,23 @@ class RetryDlqIntegrationTest {
         assertThat(retriedEvent.getStatus()).isEqualTo(OutboxEventStatus.PUBLISHED);
         assertThat(retriedEvent.getRetryCount()).isEqualTo(1);
         assertThat(retriedEvent.getLastError()).contains("Injected consumer crash");
+        assertThat(deadLetterEventRepository.count()).isZero();
+    }
+
+    @Test
+    void retrySchedulerReprocessesDueConsumerFailures() {
+        OrderResponse createResponse = createInventoryReservedOrder("SKU-CONSUMER-RETRY");
+        OutboxEvent paymentEvent = publishInventoryReservedEvent(createResponse.orderId());
+        failureInjectionService.failConsumerOnce(paymentEvent.getId(), "Injected consumer crash");
+        orderEventConsumer.processDuePublishedEvents();
+
+        int retriedEvents = orderEventRetryScheduler.retryDueEvents();
+
+        assertThat(retriedEvents).isEqualTo(1);
+        assertThat(outboxEventRepository.findById(paymentEvent.getId()).get().getStatus())
+                .isEqualTo(OutboxEventStatus.PROCESSED);
+        assertThat(orderRepository.findById(createResponse.orderId()).get().getStatus())
+                .isEqualTo(OrderStatus.COMPLETED);
         assertThat(deadLetterEventRepository.count()).isZero();
     }
 
@@ -171,6 +207,30 @@ class RetryDlqIntegrationTest {
         assertThat(orderAuditLogRepository.findByOrderIdOrderBySequenceNumberAsc(createResponse.orderId()))
                 .extracting(auditLog -> auditLog.getMessage())
                 .contains("Manual retry replayed DLQ event", "Payment authorized", "Order completed");
+    }
+
+    @Test
+    void manualRetryKeepsDlqOpenWhenReplayFailsAgain() {
+        OrderResponse createResponse = createInventoryReservedOrder("SKU-MANUAL-RETRY-FAILS");
+        publishInventoryReservedEvent(createResponse.orderId());
+        failureInjectionService.failPaymentAttempts(createResponse.orderId(), 2);
+        orderEventConsumer.processDuePublishedEvents();
+        orderEventConsumer.processDuePublishedEvents();
+        DeadLetterEvent deadLetterEvent = deadLetterEventRepository.findAll().get(0);
+
+        failureInjectionService.failPaymentAttempts(createResponse.orderId(), 1);
+        ResponseEntity<Void> retryResponse = restTemplate.postForEntity(
+                "/api/dlq/{deadLetterEventId}/retry",
+                null,
+                Void.class,
+                deadLetterEvent.getId()
+        );
+
+        assertThat(retryResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(deadLetterEventRepository.findById(deadLetterEvent.getId()).get().getStatus())
+                .isEqualTo(DeadLetterStatus.OPEN);
+        assertThat(orderRepository.findById(createResponse.orderId()).get().getStatus())
+                .isEqualTo(OrderStatus.INVENTORY_RESERVED);
     }
 
     private OrderResponse createInventoryReservedOrder(String sku) {
