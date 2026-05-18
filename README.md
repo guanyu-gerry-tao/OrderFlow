@@ -1,6 +1,6 @@
 # OrderFlow
 
-OrderFlow is a distributed order management system with a local backend foundation for reliable order workflow execution. The current implementation can create an order, reserve inventory, authorize a simulated payment, complete the order, replay repeated submissions by idempotency key, prevent concurrent inventory oversell, publish workflow events through a transactional outbox, retry failed event processing, move exhausted failures into a dead-letter table, and expose an auditable order timeline.
+OrderFlow is a distributed order management system with a local backend foundation and an operations console for reliable order workflow execution. The current implementation can create an order, reserve inventory, authorize a simulated payment, complete the order, replay repeated submissions by idempotency key, prevent concurrent inventory oversell, publish workflow events through a transactional outbox, retry failed event processing, move exhausted failures into a dead-letter table, expose an auditable order timeline, and inspect workflow health from a React console.
 
 ## Implemented Capabilities
 
@@ -15,24 +15,28 @@ OrderFlow is a distributed order management system with a local backend foundati
 - Event consumer processing for order-created and inventory-reserved workflow events.
 - Retry metadata with retry count, next attempt time, and last error for publish and consumer failures.
 - Dead-letter records and a manual retry API for exhausted event-processing failures.
+- React TypeScript operations console for order creation, order timeline inspection, inventory visibility, failed-event recovery, service health, and live SSE health snapshots.
+- Typed frontend API client layer that centralizes backend calls and request error handling.
+- Frontend unit tests and Playwright e2e tests for the core console workflows.
 - Minimal backend CI for the Gradle test suite and backend jar build smoke.
 
 ## Planned Capabilities
 
-- A React TypeScript operations console for orders, inventory, failed events, and service health.
+- Expanded CI that runs backend, frontend, and e2e regression checks.
 - Repeatable tests and benchmark reports for asynchronous reliability scenarios.
 
 ## Tech Stack
 
 - Backend: Java 17 target, Spring Boot, Spring Data JPA, Spring Data Redis, Spring Kafka, Flyway, PostgreSQL, Redis, and Redpanda.
+- Frontend: React, TypeScript, Vite, and Playwright.
 - Testing: JUnit and Testcontainers for backend workflow, cache, concurrency, outbox, retry, and DLQ behavior.
-- Infrastructure: Docker Compose for local PostgreSQL, Redis, Redpanda, and backend runtime.
+- Infrastructure: Docker Compose for local PostgreSQL, Redis, Redpanda, backend, and frontend runtime.
 - CI: GitHub Actions for backend tests and a backend jar build smoke.
-- Planned later: React, TypeScript, frontend tests, expanded CI, and async reliability benchmark automation.
+- Planned later: expanded CI and async reliability benchmark automation.
 
 ## Current Status
 
-The first three backend milestones are implemented. The backend exposes REST APIs to seed inventory, create an order, fetch order details, fetch an order timeline, list DLQ records, and manually retry a DLQ event. The default runtime event mode is `outbox-kafka`; direct synchronous processing remains available only for tests and benchmark-style comparisons.
+The first four milestones are implemented. The backend exposes REST APIs to seed inventory, create an order, list and fetch order details, fetch an order timeline, list inventory, list DLQ records, manually retry a DLQ event, fetch operations health, and stream live SSE health snapshots. The frontend console consumes those APIs through a typed client layer. The default runtime event mode is `outbox-kafka`; direct synchronous processing remains available only for tests and benchmark-style comparisons.
 
 ## Local Development
 
@@ -48,11 +52,29 @@ If Docker Desktop exposes a custom socket on macOS, set `DOCKER_HOST` before run
 DOCKER_HOST=unix://$HOME/.docker/run/docker.sock ./gradlew test --no-daemon
 ```
 
-Start PostgreSQL, Redis, Redpanda, and the backend locally:
+Install frontend dependencies:
+
+```bash
+cd frontend
+npm install
+```
+
+Run frontend checks:
+
+```bash
+cd frontend
+npm test
+npm run build
+npm run e2e
+```
+
+Start PostgreSQL, Redis, Redpanda, backend, and frontend locally:
 
 ```bash
 docker compose up --build
 ```
+
+The backend listens on `http://localhost:8080`. The console is served on `http://localhost:5173`.
 
 Seed inventory and create an order:
 
@@ -73,6 +95,13 @@ List dead-letter events and manually retry one if a failure has exhausted retrie
 curl http://localhost:8080/api/dlq
 
 curl -X POST http://localhost:8080/api/dlq/<dead-letter-event-id>/retry
+```
+
+Open the operations health API or SSE stream:
+
+```bash
+curl http://localhost:8080/api/operations/health
+curl http://localhost:8080/api/realtime/events
 ```
 
 Run the correctness benchmark modes:

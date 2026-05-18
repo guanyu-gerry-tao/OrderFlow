@@ -1,4 +1,5 @@
 package com.orderflow.inventory;
+import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
@@ -46,5 +47,22 @@ public class InventoryService {
      */
     public void reserve(String sku, int quantity) {
         inventoryReservationStrategy.reserve(sku, quantity);
+    }
+
+    /**
+     * Lists inventory rows for the operations console.
+     *
+     * @return inventory rows sorted by SKU
+     */
+    public List<InventoryItemResponse> listInventory() {
+        return inventoryItemRepository.findAllByOrderBySkuAsc()
+                .stream()
+                .map(item -> new InventoryItemResponse(
+                        item.getSku(),
+                        item.getAvailableQuantity(),
+                        item.getVersion(),
+                        item.getUpdatedAt()
+                ))
+                .toList();
     }
 }

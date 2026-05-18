@@ -1,6 +1,8 @@
 package com.orderflow.inventory;
 
 import jakarta.validation.Valid;
+import java.util.List;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,5 +37,15 @@ public class InventoryController {
     public ResponseEntity<Void> seedInventory(@Valid @RequestBody SeedInventoryRequest request) {
         inventoryService.seedInventory(request.sku(), request.availableQuantity());
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Lists current inventory for the operations console.
+     *
+     * @return inventory rows
+     */
+    @GetMapping
+    public List<InventoryItemResponse> listInventory() {
+        return inventoryService.listInventory();
     }
 }

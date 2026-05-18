@@ -74,6 +74,15 @@ public class InventoryItem {
     }
 
     /**
+     * Returns when the inventory row last changed.
+     *
+     * @return updated timestamp
+     */
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    /**
      * Replaces the available quantity for seed data.
      *
      * @param availableQuantity new available quantity

@@ -37,4 +37,13 @@ public class EventMode {
     public boolean isDirect() {
         return "direct".equalsIgnoreCase(mode) || "direct-consumer".equalsIgnoreCase(mode);
     }
+
+    /**
+     * Returns the configured mode name for health and troubleshooting responses.
+     *
+     * @return configured event mode
+     */
+    public String getModeName() {
+        return mode;
+    }
 }
