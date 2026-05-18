@@ -3,9 +3,11 @@ package com.orderflow.order;
 import com.orderflow.audit.OrderAuditLog;
 import com.orderflow.audit.OrderAuditLogRepository;
 import com.orderflow.audit.OrderAuditService;
+import com.orderflow.idempotency.IdempotencyService;
 import com.orderflow.inventory.InventoryService;
 import com.orderflow.payment.PaymentService;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,7 @@ public class OrderWorkflowService {
     private final OrderAuditService orderAuditService;
     private final OrderAuditLogRepository orderAuditLogRepository;
     private final OrderStateMachine orderStateMachine;
+    private final IdempotencyService idempotencyService;
 
     /**
      * Creates an order workflow service.
@@ -33,30 +36,67 @@ public class OrderWorkflowService {
      * @param paymentService payment simulation service
      * @param orderAuditService audit writer
      * @param orderAuditLogRepository audit query repository
+     * @param idempotencyService idempotency coordinator
      */
     public OrderWorkflowService(
             OrderRepository orderRepository,
             InventoryService inventoryService,
             PaymentService paymentService,
             OrderAuditService orderAuditService,
-            OrderAuditLogRepository orderAuditLogRepository
+            OrderAuditLogRepository orderAuditLogRepository,
+            IdempotencyService idempotencyService
     ) {
         this.orderRepository = orderRepository;
         this.inventoryService = inventoryService;
         this.paymentService = paymentService;
         this.orderAuditService = orderAuditService;
         this.orderAuditLogRepository = orderAuditLogRepository;
+        this.idempotencyService = idempotencyService;
         this.orderStateMachine = new OrderStateMachine();
     }
 
     /**
-     * Creates an order and completes the synchronous happy path.
+     * Creates an order and completes the synchronous workflow.
+     *
+     * @param request order creation request
+     * @param idempotencyKey optional idempotency key
+     * @return completed order response
+     */
+    @Transactional
+    public OrderResponse createOrder(CreateOrderRequest request, String idempotencyKey) {
+        if (!idempotencyService.shouldApply(idempotencyKey)) {
+            return createNewOrder(request);
+        }
+
+        String normalizedKey = idempotencyService.normalizeKey(idempotencyKey);
+        String requestHash = idempotencyService.hashRequest(request);
+        Optional<OrderResponse> cachedResponse = idempotencyService.findCachedResponse(normalizedKey, requestHash);
+        if (cachedResponse.isPresent()) {
+            return cachedResponse.get();
+        }
+
+        idempotencyService.lockKey(normalizedKey);
+        Optional<OrderResponse> storedResponse = idempotencyService.findStoredResponse(normalizedKey, requestHash);
+        if (storedResponse.isPresent()) {
+            return storedResponse.get();
+        }
+
+        OrderResponse response = createNewOrder(request);
+        idempotencyService.recordCompletedResponse(normalizedKey, requestHash, response);
+        return response;
+    }
+
+    /**
+     * Creates an order without idempotency replay.
      *
      * @param request order creation request
      * @return completed order response
      */
-    @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
+        return createOrder(request, null);
+    }
+
+    private OrderResponse createNewOrder(CreateOrderRequest request) {
         OrderEntity order = new OrderEntity(request.customerId());
 
         // Persist the order and its line items before reserving inventory.

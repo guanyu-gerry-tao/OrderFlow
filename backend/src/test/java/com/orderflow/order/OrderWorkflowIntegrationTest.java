@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.orderflow.api.ApiErrorResponse;
 import com.orderflow.audit.OrderAuditLogRepository;
+import com.orderflow.idempotency.IdempotencyRecordRepository;
 import com.orderflow.inventory.InventoryItemRepository;
 import com.orderflow.inventory.SeedInventoryRequest;
 import com.orderflow.payment.PaymentAttemptRepository;
@@ -54,8 +55,12 @@ class OrderWorkflowIntegrationTest {
     @Autowired
     private OrderRepository orderRepository;
 
+    @Autowired
+    private IdempotencyRecordRepository idempotencyRecordRepository;
+
     @BeforeEach
     void clearDatabase() {
+        idempotencyRecordRepository.deleteAll();
         orderAuditLogRepository.deleteAll();
         paymentAttemptRepository.deleteAll();
         orderRepository.deleteAll();

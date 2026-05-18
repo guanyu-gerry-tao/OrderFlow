@@ -1,6 +1,4 @@
 package com.orderflow.inventory;
-
-import com.orderflow.api.WorkflowConflictException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -10,14 +8,20 @@ import org.springframework.stereotype.Service;
 public class InventoryService {
 
     private final InventoryItemRepository inventoryItemRepository;
+    private final InventoryReservationStrategy inventoryReservationStrategy;
 
     /**
      * Creates an inventory service.
      *
      * @param inventoryItemRepository inventory repository
+     * @param inventoryReservationStrategy configured reservation strategy
      */
-    public InventoryService(InventoryItemRepository inventoryItemRepository) {
+    public InventoryService(
+            InventoryItemRepository inventoryItemRepository,
+            InventoryReservationStrategy inventoryReservationStrategy
+    ) {
         this.inventoryItemRepository = inventoryItemRepository;
+        this.inventoryReservationStrategy = inventoryReservationStrategy;
     }
 
     /**
@@ -35,16 +39,12 @@ public class InventoryService {
     }
 
     /**
-     * Reserves inventory from one SKU for the M1 synchronous workflow.
+     * Reserves inventory from one SKU for the synchronous workflow.
      *
      * @param sku stock keeping unit
      * @param quantity units to reserve
      */
     public void reserve(String sku, int quantity) {
-        InventoryItem inventoryItem = inventoryItemRepository.findBySku(sku)
-                .orElseThrow(() -> new WorkflowConflictException("Inventory SKU not found: " + sku));
-
-        inventoryItem.reserve(quantity);
-        inventoryItemRepository.save(inventoryItem);
+        inventoryReservationStrategy.reserve(sku, quantity);
     }
 }

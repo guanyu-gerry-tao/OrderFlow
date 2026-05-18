@@ -1,32 +1,34 @@
 # OrderFlow
 
-OrderFlow is a distributed order management system with a local backend foundation for order workflow execution. The current implementation focuses on a synchronous happy path: create an order, reserve inventory, authorize a simulated payment, complete the order, and expose an auditable order timeline.
+OrderFlow is a distributed order management system with a local backend foundation for order workflow execution. The current implementation focuses on a synchronous order flow with correctness controls: create an order, reserve inventory, authorize a simulated payment, complete the order, replay repeated submissions by idempotency key, prevent concurrent inventory oversell, and expose an auditable order timeline.
 
 ## Implemented Capabilities
 
 - Order creation, inventory reservation, payment simulation, and explicit order state transitions.
 - Audit logs and order timelines for workflow visibility.
+- Idempotency-key handling for repeated order submissions.
+- PostgreSQL-backed idempotency records with Redis response caching and PostgreSQL fallback when Redis is unavailable.
+- Optimistic inventory reservation strategy for concurrent checkout attempts.
+- Baseline and improved correctness benchmark modes for repeated-submit and concurrent-checkout scenarios.
 - Minimal backend CI for the Gradle test suite and backend jar build smoke.
 
 ## Planned Capabilities
 
-- Idempotency handling for repeated submissions.
-- Optimistic inventory locking for concurrent checkout scenarios.
 - Transactional outbox, event consumers, retry handling, dead-letter records, and manual retry flows.
 - A React TypeScript operations console for orders, inventory, failed events, and service health.
-- Repeatable tests and benchmark reports for correctness and reliability scenarios.
+- Repeatable tests and benchmark reports for asynchronous reliability scenarios.
 
 ## Tech Stack
 
-- Backend: Java 17 target, Spring Boot, Spring Data JPA, Flyway, and PostgreSQL.
-- Testing: JUnit and Testcontainers for the current backend workflow.
-- Infrastructure: Docker Compose for local PostgreSQL and backend runtime.
+- Backend: Java 17 target, Spring Boot, Spring Data JPA, Spring Data Redis, Flyway, PostgreSQL, and Redis.
+- Testing: JUnit and Testcontainers for backend workflow, cache, and concurrency behavior.
+- Infrastructure: Docker Compose for local PostgreSQL, Redis, and backend runtime.
 - CI: GitHub Actions for backend tests and a backend jar build smoke.
-- Planned later: Redis, Kafka or a Kafka-compatible local broker, React, TypeScript, frontend tests, expanded CI, and benchmark automation.
+- Planned later: Kafka or a Kafka-compatible local broker, React, TypeScript, frontend tests, expanded CI, and async reliability benchmark automation.
 
 ## Current Status
 
-The first backend milestone is implemented. The backend exposes REST APIs to seed inventory, create an order, fetch order details, and fetch an order timeline. The workflow is synchronous in this milestone; asynchronous event processing, idempotency, concurrency controls, retry handling, dead-letter records, and the frontend console are planned for later milestones.
+The first two backend milestones are implemented. The backend exposes REST APIs to seed inventory, create an order, fetch order details, and fetch an order timeline. The workflow is still synchronous; asynchronous event processing, retry handling, dead-letter records, manual retry, and the frontend console are planned for later milestones.
 
 ## Local Development
 
@@ -57,5 +59,15 @@ curl -X POST http://localhost:8080/api/inventory/seed \
 
 curl -X POST http://localhost:8080/api/orders \
   -H "Content-Type: application/json" \
+  -H "Idempotency-Key: demo-order-001" \
   -d '{"customerId":"customer-101","items":[{"sku":"SKU-M1","quantity":2}]}'
 ```
+
+Run the correctness benchmark modes:
+
+```bash
+./gradlew benchmarkOrderCorrectness -Pmode=improved
+./gradlew benchmarkOrderCorrectness -Pmode=baseline
+```
+
+Local benchmark results are written under `benchmarks/results/order-correctness/`, which is ignored by Git.
