@@ -111,10 +111,11 @@ class OrderCorrectnessBenchmarkTest {
         benchmarkResult.set("repeatedSubmit", runRepeatedSubmitScenario());
         clearDatabase();
         benchmarkResult.set("concurrentCheckout", runConcurrentCheckoutScenario());
+        assertCorrectnessInvariants(mode, benchmarkResult);
 
         Path outputDirectory = Path.of(System.getProperty(
                 "orderflow.benchmark.outputDir",
-                "benchmarks/results/order-correctness"
+                "benchmarks/results/full/order-correctness"
         ));
         BenchmarkReportWriter writer = new BenchmarkReportWriter(objectMapper);
         BenchmarkReportFiles reportFiles = writer.writeReport(
@@ -251,5 +252,21 @@ class OrderCorrectnessBenchmarkTest {
 
     private static int integerProperty(String propertyName, int defaultValue) {
         return Integer.parseInt(System.getProperty(propertyName, String.valueOf(defaultValue)));
+    }
+
+    private void assertCorrectnessInvariants(String mode, ObjectNode benchmarkResult) {
+        ObjectNode repeatedSubmit = (ObjectNode) benchmarkResult.get("repeatedSubmit");
+        ObjectNode concurrentCheckout = (ObjectNode) benchmarkResult.get("concurrentCheckout");
+
+        if ("baseline".equalsIgnoreCase(mode)) {
+            assertThat(repeatedSubmit.get("duplicateOrders").asLong()).isGreaterThan(0);
+            return;
+        }
+
+        assertThat(repeatedSubmit.get("duplicateOrders").asLong()).isZero();
+        assertThat(repeatedSubmit.get("logicalOrders").asLong()).isEqualTo(1);
+        assertThat(concurrentCheckout.get("oversellCount").asLong()).isZero();
+        assertThat(concurrentCheckout.get("successfulOrders").asLong())
+                .isLessThanOrEqualTo(concurrentCheckout.get("initialStock").asLong());
     }
 }

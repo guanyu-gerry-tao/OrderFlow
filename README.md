@@ -119,7 +119,7 @@ For a quick report-generation smoke:
 ./scripts/benchmark/run-evidence-package --smoke
 ```
 
-Local benchmark results are written under `benchmarks/results/`, which is ignored by Git. See `benchmarks/README.md` for full-size benchmark commands and report details.
+Local benchmark results are written under `benchmarks/results/full/`. Smoke results are written under `benchmarks/results/smoke/` so quick checks do not overwrite full evidence. Both paths are ignored by Git. See `benchmarks/README.md` for full-size benchmark commands and report details.
 
 Start the local demo stack and seed sample data:
 

@@ -60,10 +60,10 @@ M5 没有新增订单业务功能，而是补齐工程证据层：
 
 结果文件位置：
 
-- `benchmarks/results/order-correctness/improved.json`
-- `benchmarks/results/order-correctness/baseline.json`
-- `benchmarks/results/async-reliability/outbox-kafka.json`
-- `benchmarks/results/async-reliability/direct.json`
+- `benchmarks/results/full/order-correctness/improved.json`
+- `benchmarks/results/full/order-correctness/baseline.json`
+- `benchmarks/results/full/async-reliability/outbox-kafka.json`
+- `benchmarks/results/full/async-reliability/direct.json`
 - 对应 `.md` 文件同目录生成。
 
 full 结果摘要：
@@ -71,7 +71,7 @@ full 结果摘要：
 | Suite | Mode | 关键结果 |
 | --- | --- | --- |
 | order correctness | improved | repeated submit 10000 次，logicalOrders = 1，duplicateOrders = 0；concurrent checkout 200 次，oversellCount = 0 |
-| order correctness | baseline | repeated submit 10000 次，logicalOrders = 10000，duplicateOrders = 9999；concurrent checkout 200 次，oversellCount = 173 |
+| order correctness | baseline | repeated submit 10000 次，logicalOrders = 10000，duplicateOrders = 9999；concurrent checkout 200 次，oversellCount = 170 |
 | async reliability | outbox-kafka | syntheticOrders = 10000，completedOrders = 10000，publishedEvents = 20000，processedEvents = 20000，retryCount = 4，dlqCount = 3 |
 | async reliability | direct | syntheticOrders = 10000，completedOrders = 10000，outboxEvents = 0，dlqCount = 0 |
 
@@ -96,8 +96,31 @@ full 结果摘要：
 ## Tradeoff
 
 - CI 跑 smoke，不跑 full load。原因是 CI 要快速发现回归，不能每次 PR 都跑 10K 级别 benchmark。
-- async benchmark 在测试环境里使用 `recording` broker，而不是拉起真实 Redpanda。原因是 M5 benchmark smoke 的目标是稳定验证 outbox/retry/DLQ 逻辑和报告生成；真实 Docker Compose + Redpanda 仍然保留在本地 demo runtime。
+- async benchmark 在测试环境里使用 `recording` broker，而不是拉起真实 Redpanda。原因是 M5 benchmark smoke 的目标是稳定验证 outbox/retry/DLQ 逻辑和报告生成；真实 Docker Compose + Redpanda 仍然保留在本地 demo runtime。public docs 已明确这个边界，避免把 recording broker 结果说成真实 Kafka broker benchmark。
 - benchmark results 继续 ignored。原因是每台机器每次运行的数字会变，public 仓库只保留 runner 和文档，internal report 保存关键摘要。
+
+## Code Review 发现与修复
+
+本轮按 `superpowers:requesting-code-review` 派出独立 reviewer 检查 `868ff77..dbba5b3` 的 M5 diff。结论是：方向正确、范围干净、没有 Critical，但合并前需要修 evidence package 的可信度缺口。
+
+发生了什么：
+
+- smoke 和 full benchmark 原本都写到同一组文件名，例如 `benchmarks/results/order-correctness/improved.json`。如果先跑 full 再跑 smoke，smoke 会覆盖 full 证据文件，导致 internal report 里的 10K 数字和本地 JSON 文件不一致。
+- benchmark 测试原本主要断言 JSON / Markdown 文件存在，没有断言关键业务指标。这样未来即使 improved mode 退化出 duplicate orders 或 oversell，只要报告还能写文件，CI benchmark smoke 仍可能通过。
+- async reliability benchmark 的 mode 名叫 `outbox-kafka`，但测试里为了稳定使用的是 `recording` broker。这个选择本身合理，但文档没有讲清楚，reviewer 可能误以为 benchmark 覆盖了真实 Redpanda/Kafka broker path。
+
+为什么会这样：
+
+- M5 一开始的重点放在“把报告生成链路接起来”，所以报告文件存在性先被验证了，但还没有把 benchmark 的 invariant 也放进测试断言。
+- smoke/full 的输出目录没有拆开，是因为脚本入口先追求简单；但 evidence package 的核心价值是“证据可追溯”，简单路径反而会造成覆盖风险。
+- `recording` broker 是为了 CI 稳定、快速、可重复；真实 Kafka/Redpanda 启动更重，适合 Docker Compose runtime smoke，不适合每次 benchmark report smoke。
+
+怎么解决：
+
+- `scripts/benchmark/* --smoke` 现在写入 `benchmarks/results/smoke/...`，full run 写入 `benchmarks/results/full/...`，避免 smoke 覆盖 full evidence。
+- benchmark 测试增加 mode-aware sanity assertions：correctness improved 必须 `duplicateOrders = 0`、`oversellCount = 0`；baseline repeated submit 必须能暴露 duplicate；async outbox benchmark 必须完成所有 synthetic orders、清空 pending outbox、验证 manual retry success/failure 和 retry/DLQ 指标。
+- public docs 和 internal docs 都补充说明：async benchmark 使用 recording broker 生成确定性证据；Docker Compose runtime 仍然是 Redpanda/Kafka-backed `outbox-kafka` 默认路径。
+- benchmark 脚本增加缺值提示；correctness smoke 的并发请求从 25 调到 50，让 smoke 报告也更容易暴露 baseline oversell 对照。
 
 ## 还没有覆盖什么
 

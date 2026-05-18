@@ -70,3 +70,5 @@ Benchmark modes are kept only for evaluation:
 - `outbox-kafka` async mode uses transactional outbox, event publishing, retry metadata, DLQ, and manual retry.
 
 The default local runtime uses the improved path.
+
+Benchmark report generation uses the recording broker for deterministic CI-friendly evidence. Docker Compose remains the local runtime path for Redpanda/Kafka-backed event publishing.

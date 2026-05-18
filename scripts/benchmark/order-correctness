@@ -1,38 +1,63 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 MODE="improved"
 REPEATED_SUBMIT_ATTEMPTS="${ORDERFLOW_BENCHMARK_REPEATED_SUBMIT_ATTEMPTS:-10000}"
 CONCURRENT_ATTEMPTS="${ORDERFLOW_BENCHMARK_CONCURRENT_ATTEMPTS:-200}"
+OUTPUT_GROUP="full"
+
+usage() {
+  echo "Usage: $0 [--mode baseline|improved] [--repeated-submit-attempts N] [--concurrent-attempts N] [--smoke]" >&2
+}
+
+require_value() {
+  if [[ -z "${2:-}" ]]; then
+    usage
+    echo "Missing value for $1" >&2
+    exit 2
+  fi
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --mode)
+      require_value "$1" "${2:-}"
       MODE="$2"
       shift 2
       ;;
     --repeated-submit-attempts)
+      require_value "$1" "${2:-}"
       REPEATED_SUBMIT_ATTEMPTS="$2"
       shift 2
       ;;
     --concurrent-attempts)
+      require_value "$1" "${2:-}"
       CONCURRENT_ATTEMPTS="$2"
       shift 2
       ;;
     --smoke)
       REPEATED_SUBMIT_ATTEMPTS="20"
-      CONCURRENT_ATTEMPTS="25"
+      CONCURRENT_ATTEMPTS="50"
+      OUTPUT_GROUP="smoke"
       shift
       ;;
     *)
+      usage
       echo "Unknown argument: $1" >&2
       exit 2
       ;;
   esac
 done
 
+OUTPUT_DIR="${ORDERFLOW_BENCHMARK_OUTPUT_DIR:-${REPO_ROOT}/benchmarks/results/${OUTPUT_GROUP}/order-correctness}"
+
+cd "${REPO_ROOT}"
+
 ./gradlew benchmarkOrderCorrectness \
   -Pmode="${MODE}" \
   -PrepeatedSubmitAttempts="${REPEATED_SUBMIT_ATTEMPTS}" \
   -PconcurrentAttempts="${CONCURRENT_ATTEMPTS}" \
+  -PoutputDir="${OUTPUT_DIR}" \
   --no-daemon

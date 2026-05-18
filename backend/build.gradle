@@ -57,7 +57,7 @@ tasks.register("benchmarkOrderCorrectness", Test) {
     systemProperty "orderflow.benchmark.mode", project.findProperty("mode") ?: "improved"
     systemProperty "orderflow.benchmark.repeatedSubmitAttempts", project.findProperty("repeatedSubmitAttempts") ?: "20"
     systemProperty "orderflow.benchmark.concurrentAttempts", project.findProperty("concurrentAttempts") ?: "200"
-    systemProperty "orderflow.benchmark.outputDir", "${rootProject.projectDir}/benchmarks/results/order-correctness"
+    systemProperty "orderflow.benchmark.outputDir", project.findProperty("outputDir") ?: "${rootProject.projectDir}/benchmarks/results/full/order-correctness"
 }
 
 tasks.register("benchmarkAsyncReliability", Test) {
@@ -72,5 +72,5 @@ tasks.register("benchmarkAsyncReliability", Test) {
     systemProperty "orderflow.async.benchmark.enabled", "true"
     systemProperty "orderflow.async.benchmark.mode", project.findProperty("mode") ?: "outbox-kafka"
     systemProperty "orderflow.async.benchmark.syntheticOrders", project.findProperty("syntheticOrders") ?: "50"
-    systemProperty "orderflow.async.benchmark.outputDir", "${rootProject.projectDir}/benchmarks/results/async-reliability"
+    systemProperty "orderflow.async.benchmark.outputDir", project.findProperty("outputDir") ?: "${rootProject.projectDir}/benchmarks/results/full/async-reliability"
 }

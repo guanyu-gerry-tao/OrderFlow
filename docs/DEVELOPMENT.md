@@ -43,7 +43,7 @@ OrderFlow currently has a Spring Boot backend foundation with correctness contro
 
 ## Benchmark Evidence
 
-Benchmark reports are generated under `benchmarks/results/`, which is ignored by Git. Each run writes JSON for machine-readable evidence and Markdown for review.
+Benchmark reports are generated under `benchmarks/results/`, which is ignored by Git. Each run writes JSON for machine-readable evidence and Markdown for review. Full reports use `benchmarks/results/full/`; CI and quick local smoke reports use `benchmarks/results/smoke/` so they do not overwrite full evidence.
 
 Correctness benchmark:
 
@@ -60,6 +60,8 @@ Async reliability benchmark:
 ```
 
 The full evidence package defaults to the larger local targets documented in `benchmarks/README.md`. CI uses smoke-sized runs so pull requests still get fast report-generation coverage.
+
+The async reliability benchmark uses the recording broker for deterministic report generation. The default Docker Compose runtime still uses Redpanda/Kafka for the `outbox-kafka` service path.
 
 ## Event Processing Modes
 

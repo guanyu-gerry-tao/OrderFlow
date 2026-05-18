@@ -142,10 +142,11 @@ class AsyncReliabilityBenchmarkTest {
             clearState();
             benchmarkResult.set("failureRecovery", runOutboxFailureRecoveryScenarios());
         }
+        assertAsyncReliabilityInvariants(mode, benchmarkResult);
 
         Path outputDirectory = Path.of(System.getProperty(
                 "orderflow.async.benchmark.outputDir",
-                "benchmarks/results/async-reliability"
+                "benchmarks/results/full/async-reliability"
         ));
         BenchmarkReportWriter writer = new BenchmarkReportWriter(objectMapper);
         BenchmarkReportFiles reportFiles = writer.writeReport(
@@ -394,5 +395,34 @@ class AsyncReliabilityBenchmarkTest {
 
     private static int integerProperty(String propertyName, int defaultValue) {
         return Integer.parseInt(System.getProperty(propertyName, String.valueOf(defaultValue)));
+    }
+
+    private void assertAsyncReliabilityInvariants(String mode, ObjectNode benchmarkResult) {
+        ObjectNode workflow = (ObjectNode) benchmarkResult.get("workflow");
+        ObjectNode failureRecovery = (ObjectNode) benchmarkResult.get("failureRecovery");
+        long attemptedOrders = workflow.get("attemptedOrders").asLong();
+
+        assertThat(workflow.get("completedOrders").asLong()).isEqualTo(attemptedOrders);
+
+        if ("direct".equalsIgnoreCase(eventModeFor(mode))) {
+            assertThat(workflow.get("outboxEvents").asLong()).isZero();
+            assertThat(workflow.get("dlqCount").asLong()).isZero();
+            assertThat(failureRecovery.get("retryCount").asInt()).isZero();
+            return;
+        }
+
+        assertThat(workflow.get("publishedEvents").asLong()).isEqualTo(attemptedOrders * 2);
+        assertThat(workflow.get("processedEvents").asLong()).isEqualTo(attemptedOrders * 2);
+        assertThat(workflow.get("pendingOutboxEvents").asLong()).isZero();
+        assertThat(((ObjectNode) failureRecovery.get("consumerCrash")).get("statusAfterRetry").asText())
+                .isEqualTo("PROCESSED");
+        assertThat(((ObjectNode) failureRecovery.get("manualRetrySuccess")).get("retryStatus").asInt())
+                .isEqualTo(202);
+        assertThat(((ObjectNode) failureRecovery.get("manualRetrySuccess")).get("orderStatus").asText())
+                .isEqualTo("COMPLETED");
+        assertThat(((ObjectNode) failureRecovery.get("manualRetryFailure")).get("retryStatus").asInt())
+                .isEqualTo(409);
+        assertThat(failureRecovery.get("retryCount").asInt()).isGreaterThan(0);
+        assertThat(failureRecovery.get("dlqCount").asInt()).isGreaterThan(0);
     }
 }

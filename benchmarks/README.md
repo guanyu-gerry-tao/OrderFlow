@@ -7,7 +7,7 @@ OrderFlow keeps benchmark modes in the current codebase so reliability claims ca
 | Suite | Baseline mode | Improved mode | Main metrics |
 | --- | --- | --- | --- |
 | Order correctness | Naive repeated submit and naive inventory reservation | Strict idempotency, Redis response cache, and optimistic locking | Duplicate orders, oversell count, successful orders, failed reservations, duration |
-| Async reliability | Direct synchronous workflow | Transactional outbox, event publishing, retry metadata, DLQ, and manual retry | Completed workflows, published events, processed events, retry count, DLQ count, manual retry result, P95/P99 create latency |
+| Async reliability | Direct synchronous workflow | Transactional outbox, event publishing through the recording broker, retry metadata, DLQ, and manual retry | Completed workflows, published events, processed events, retry count, DLQ count, manual retry result, P95/P99 create latency |
 
 ## Full Evidence Run
 
@@ -32,6 +32,8 @@ Run a smaller version for CI or quick local validation:
 ```
 
 Smoke mode proves the report generation path and benchmark mode switching without running the full load target.
+
+Smoke reports are written under `benchmarks/results/smoke/` so they do not overwrite full evidence reports.
 
 ## Individual Commands
 
@@ -62,5 +64,9 @@ Reports are written under `benchmarks/results/`, which is ignored by Git because
 
 - A JSON report for machine-readable evidence.
 - A Markdown summary for review and documentation.
+
+Full reports are written under `benchmarks/results/full/`. Smoke reports are written under `benchmarks/results/smoke/`.
+
+The async reliability benchmark uses the in-process recording broker so CI can verify outbox, retry, DLQ, and manual-retry invariants deterministically. The local Docker Compose runtime still uses Redpanda/Kafka for the default `outbox-kafka` service path.
 
 The reports are synthetic benchmark evidence from the local codebase. They are not production traffic or production performance numbers.

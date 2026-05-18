@@ -21,13 +21,13 @@
 
 | 指标 | 本轮结果 | 证据 |
 | --- | --- | --- |
-| repeated submit duplicate orders | improved: 0 / 10000；baseline: 9999 / 10000 | `benchmarks/results/order-correctness/improved.json`，`baseline.json` |
-| concurrent checkout oversell count | improved: 0；baseline: 173 | `benchmarks/results/order-correctness/improved.json`，`baseline.json` |
-| async completed orders | outbox-kafka: 10000 / 10000；direct: 10000 / 10000 | `benchmarks/results/async-reliability/outbox-kafka.json`，`direct.json` |
-| outbox published / processed events | outbox-kafka: 20000 published，20000 processed | `benchmarks/results/async-reliability/outbox-kafka.json` |
-| async retry count | outbox-kafka: 4 | `benchmarks/results/async-reliability/outbox-kafka.json` |
-| DLQ count | outbox-kafka: 3 after injected recovery scenarios | `benchmarks/results/async-reliability/outbox-kafka.json` |
-| P95/P99 create latency | outbox-kafka full: P95 3ms，P99 5ms；direct full: P95 6ms，P99 8ms | `benchmarks/results/async-reliability/*.json` |
+| repeated submit duplicate orders | improved: 0 / 10000；baseline: 9999 / 10000 | `benchmarks/results/full/order-correctness/improved.json`，`baseline.json` |
+| concurrent checkout oversell count | improved: 0；baseline: 170 | `benchmarks/results/full/order-correctness/improved.json`，`baseline.json` |
+| async completed orders | outbox-kafka: 10000 / 10000；direct: 10000 / 10000 | `benchmarks/results/full/async-reliability/outbox-kafka.json`，`direct.json` |
+| outbox published / processed events | outbox-kafka: 20000 published，20000 processed | `benchmarks/results/full/async-reliability/outbox-kafka.json` |
+| async retry count | outbox-kafka: 4 | `benchmarks/results/full/async-reliability/outbox-kafka.json` |
+| DLQ count | outbox-kafka: 3 after injected recovery scenarios | `benchmarks/results/full/async-reliability/outbox-kafka.json` |
+| P95/P99 create latency | outbox-kafka full: P95 2ms，P99 4ms；direct full: P95 4ms，P99 6ms | `benchmarks/results/full/async-reliability/*.json` |
 
 ## Full Evidence 命令
 
@@ -84,5 +84,7 @@
 
 - Full 10K evidence command 已实现并已在本轮运行。
 - CI benchmark smoke 是小样本，目的不是压测，而是保证 runner 和报告格式不坏。
+- Smoke evidence 写入 `benchmarks/results/smoke/`，full evidence 写入 `benchmarks/results/full/`，避免快速检查覆盖完整证据。
+- Async benchmark 使用 recording broker 断言 outbox/retry/DLQ 语义；真实 Redpanda/Kafka 路径通过 Docker Compose runtime 保留。
 - M5 没有做云部署；AWS runtime 属于 M6。
 - public 文档不能引用本文件里的内部定位或简历表达。

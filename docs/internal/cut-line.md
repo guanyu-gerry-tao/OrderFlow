@@ -10,6 +10,7 @@
 - public docs 已补充工程中性架构、benchmark、demo、CI 信息。
 - internal evidence package、理解报告、highlight inventory 已创建。
 - full evidence package 已运行，并刷新了 10K repeated-submit、200 concurrent checkout、10K async synthetic order 数字。
+- code review 后已补强 evidence 可信度：smoke/full 输出隔离、benchmark 关键指标断言、recording broker 文档边界。
 
 ## 本轮没有做的 Stretch
 

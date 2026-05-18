@@ -60,7 +60,7 @@ DOCKER_HOST=unix://$HOME/.docker/run/docker.sock ./gradlew benchmarkOrderCorrect
 DOCKER_HOST=unix://$HOME/.docker/run/docker.sock ./gradlew benchmarkOrderCorrectness -Pmode=baseline --no-daemon
 ```
 
-The benchmark writes local JSON output under `benchmarks/results/order-correctness/`.
+The benchmark writes full local evidence under `benchmarks/results/full/order-correctness/`. Smoke runs write under `benchmarks/results/smoke/order-correctness/`.
 
 ## Latest Local Benchmark Snapshot
 

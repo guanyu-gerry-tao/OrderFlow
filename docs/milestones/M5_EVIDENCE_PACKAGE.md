@@ -8,7 +8,7 @@ M5 expands OrderFlow from implemented backend/frontend capabilities into a repea
 
 - Expanded GitHub Actions workflow with backend regression, frontend regression, console e2e smoke, and benchmark report smoke jobs.
 - Order correctness benchmark report generation for baseline and improved modes.
-- Async reliability benchmark report generation for direct and outbox-kafka modes.
+- Async reliability benchmark report generation for direct and outbox-kafka modes, using the recording broker for deterministic benchmark evidence.
 - JSON and Markdown output for benchmark reports.
 - Benchmark scripts under `scripts/benchmark/`.
 - Local demo startup and seed-data scripts under `scripts/demo/`.
@@ -39,7 +39,7 @@ Run individual suites:
 ./scripts/benchmark/async-reliability --mode direct
 ```
 
-Reports are written to `benchmarks/results/`, which is ignored by Git.
+Full reports are written to `benchmarks/results/full/`. Smoke reports are written to `benchmarks/results/smoke/`. Both are ignored by Git.
 
 ## CI Coverage
 
