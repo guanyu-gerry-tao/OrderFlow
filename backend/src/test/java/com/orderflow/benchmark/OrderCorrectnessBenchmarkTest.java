@@ -71,6 +71,8 @@ class OrderCorrectnessBenchmarkTest {
         registry.add("orderflow.idempotency.mode", () -> idempotencyModeFor(mode));
         registry.add("orderflow.idempotency.cache", () -> cacheModeFor(mode));
         registry.add("orderflow.inventory.strategy", () -> inventoryStrategyFor(mode));
+        registry.add("orderflow.events.mode", () -> "direct");
+        registry.add("orderflow.events.broker", () -> "recording");
     }
 
     @Autowired

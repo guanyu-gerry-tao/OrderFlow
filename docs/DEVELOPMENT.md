@@ -1,20 +1,22 @@
 # Development Notes
 
-OrderFlow currently has a Spring Boot backend foundation for the synchronous order workflow plus M2 correctness controls. This document records the public development commands and conventions that are real in the current codebase.
+OrderFlow currently has a Spring Boot backend foundation with correctness controls and reliable asynchronous event processing. This document records the public development commands and conventions that are real in the current codebase.
 
 ## Repository Status
 
 - Backend runtime code has landed under `backend/`.
 - Public documentation should distinguish implemented backend behavior from planned later milestones.
-- The current runnable service depends on PostgreSQL and Redis.
+- The current runnable service depends on PostgreSQL, Redis, and Redpanda.
 - PostgreSQL remains the source of truth for idempotency records; Redis is a short-lived response cache.
+- The default event mode is `outbox-kafka`; direct synchronous processing is kept for tests and benchmark-style comparison only.
+- Outbox and DLQ metadata are stored in PostgreSQL so retry state is visible even when event processing fails.
 - Internal planning material belongs in ignored private documentation and should not be referenced from public-facing files.
 
 ## Expected Local Development Flow
 
 - Keep changes scoped to the active milestone.
 - Use `./gradlew test` for the backend test suite.
-- Use `docker compose up --build` for the local PostgreSQL, Redis, and backend runtime.
+- Use `docker compose up --build` for the local PostgreSQL, Redis, Redpanda, and backend runtime.
 - Use `./gradlew benchmarkOrderCorrectness -Pmode=improved` and `./gradlew benchmarkOrderCorrectness -Pmode=baseline` for the M2 correctness benchmark.
 - Prefer reproducible local dependencies through Docker Compose.
 - Keep public docs in sync with implemented behavior, not aspirational behavior.
@@ -25,9 +27,29 @@ OrderFlow currently has a Spring Boot backend foundation for the synchronous ord
 - Use integration tests when behavior depends on database transactions, message brokers, cache behavior, or concurrency.
 - The current integration tests use Testcontainers with PostgreSQL and Redis where needed.
 - M2 tests cover repeated-submit idempotency, same-key request conflicts, Redis response caching, Redis-unavailable fallback, and 200 concurrent checkout attempts.
+- M3 tests cover transactional outbox writes, broker publishing, consumer processing, publish-failure retry metadata, consumer-crash retry metadata, payment-timeout DLQ routing, and manual retry recovery.
 - On Docker Desktop for macOS, `DOCKER_HOST=unix://$HOME/.docker/run/docker.sock ./gradlew test --no-daemon` may be needed when the default socket is not detected.
 - Keep benchmark and comparison modes runnable in the current codebase when they are used to prove an engineering mechanism.
 - Baseline modes should stay isolated to test, benchmark, or evaluation profiles. Default runtime paths should use the improved implementation.
+
+## Event Processing Modes
+
+Default local runtime:
+
+```text
+ORDERFLOW_EVENT_MODE=outbox-kafka
+ORDERFLOW_EVENT_BROKER=kafka
+SPRING_KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
+```
+
+Direct mode is used by legacy workflow tests and comparison paths:
+
+```text
+ORDERFLOW_EVENT_MODE=direct
+ORDERFLOW_EVENT_BROKER=recording
+```
+
+The direct mode is not the normal runtime path. It exists so the synchronous M1/M2 behaviors remain testable while the default service uses the reliable outbox path.
 
 ## PR And Milestone Workflow
 

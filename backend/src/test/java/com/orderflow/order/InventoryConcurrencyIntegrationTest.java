@@ -46,6 +46,8 @@ class InventoryConcurrencyIntegrationTest {
         registry.add("spring.data.redis.host", () -> "127.0.0.1");
         registry.add("spring.data.redis.port", () -> "1");
         registry.add("spring.data.redis.timeout", () -> "100ms");
+        registry.add("orderflow.events.mode", () -> "direct");
+        registry.add("orderflow.events.broker", () -> "recording");
     }
 
     @Autowired

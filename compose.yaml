@@ -23,6 +23,33 @@ services:
       timeout: 3s
       retries: 10
 
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.9
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+    ports:
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: .
@@ -33,10 +60,15 @@ services:
       SPRING_DATASOURCE_PASSWORD: orderflow
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      ORDERFLOW_EVENT_MODE: outbox-kafka
+      ORDERFLOW_EVENT_BROKER: kafka
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
