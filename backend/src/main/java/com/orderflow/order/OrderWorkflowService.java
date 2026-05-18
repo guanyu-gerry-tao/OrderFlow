@@ -5,6 +5,9 @@ import com.orderflow.audit.OrderAuditLogRepository;
 import com.orderflow.audit.OrderAuditService;
 import com.orderflow.idempotency.IdempotencyService;
 import com.orderflow.inventory.InventoryService;
+import com.orderflow.events.OrderEventType;
+import com.orderflow.outbox.EventMode;
+import com.orderflow.outbox.OutboxService;
 import com.orderflow.payment.PaymentService;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +30,8 @@ public class OrderWorkflowService {
     private final OrderAuditLogRepository orderAuditLogRepository;
     private final OrderStateMachine orderStateMachine;
     private final IdempotencyService idempotencyService;
+    private final EventMode eventMode;
+    private final OutboxService outboxService;
 
     /**
      * Creates an order workflow service.
@@ -37,6 +42,8 @@ public class OrderWorkflowService {
      * @param orderAuditService audit writer
      * @param orderAuditLogRepository audit query repository
      * @param idempotencyService idempotency coordinator
+     * @param eventMode event processing mode
+     * @param outboxService transactional outbox writer
      */
     public OrderWorkflowService(
             OrderRepository orderRepository,
@@ -44,7 +51,9 @@ public class OrderWorkflowService {
             PaymentService paymentService,
             OrderAuditService orderAuditService,
             OrderAuditLogRepository orderAuditLogRepository,
-            IdempotencyService idempotencyService
+            IdempotencyService idempotencyService,
+            EventMode eventMode,
+            OutboxService outboxService
     ) {
         this.orderRepository = orderRepository;
         this.inventoryService = inventoryService;
@@ -52,6 +61,8 @@ public class OrderWorkflowService {
         this.orderAuditService = orderAuditService;
         this.orderAuditLogRepository = orderAuditLogRepository;
         this.idempotencyService = idempotencyService;
+        this.eventMode = eventMode;
+        this.outboxService = outboxService;
         this.orderStateMachine = new OrderStateMachine();
     }
 
@@ -97,6 +108,28 @@ public class OrderWorkflowService {
     }
 
     private OrderResponse createNewOrder(CreateOrderRequest request) {
+        if (eventMode.isOutboxKafka()) {
+            return createOutboxOrder(request);
+        }
+
+        return createSynchronousOrder(request);
+    }
+
+    private OrderResponse createOutboxOrder(CreateOrderRequest request) {
+        OrderEntity order = new OrderEntity(request.customerId());
+
+        // Persist the order and outbox event in the same transaction.
+        for (CreateOrderItemRequest itemRequest : request.items()) {
+            order.addItem(itemRequest.sku(), itemRequest.quantity());
+        }
+        orderRepository.saveAndFlush(order);
+        orderAuditService.record(order.getId(), 1, null, OrderStatus.CREATED, "Order created");
+        outboxService.enqueueOrderEvent(order.getId(), OrderEventType.ORDER_CREATED);
+
+        return toOrderResponse(order);
+    }
+
+    private OrderResponse createSynchronousOrder(CreateOrderRequest request) {
         OrderEntity order = new OrderEntity(request.customerId());
 
         // Persist the order and its line items before reserving inventory.

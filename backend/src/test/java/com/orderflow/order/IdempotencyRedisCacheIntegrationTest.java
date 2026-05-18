@@ -45,6 +45,8 @@ class IdempotencyRedisCacheIntegrationTest {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
+        registry.add("orderflow.events.mode", () -> "direct");
+        registry.add("orderflow.events.broker", () -> "recording");
     }
 
     @Autowired
