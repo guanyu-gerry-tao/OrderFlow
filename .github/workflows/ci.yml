@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend:
-    name: Backend tests
+    name: Backend regression
     runs-on: ubuntu-latest
 
     steps:
@@ -29,3 +29,86 @@ jobs:
 
       - name: Build backend jar
         run: ./gradlew :backend:bootJar --no-daemon -x test
+
+  frontend:
+    name: Frontend regression
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+  e2e:
+    name: Console e2e smoke
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run mocked console e2e smoke
+        run: npm run e2e
+
+  benchmark-smoke:
+    name: Benchmark report smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run correctness benchmark smoke
+        run: |
+          ./scripts/benchmark/order-correctness --mode improved --smoke
+          ./scripts/benchmark/order-correctness --mode baseline --smoke
+
+      - name: Run async reliability benchmark smoke
+        run: |
+          ./scripts/benchmark/async-reliability --mode outbox-kafka --smoke
+          ./scripts/benchmark/async-reliability --mode direct --smoke

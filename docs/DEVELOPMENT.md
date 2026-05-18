@@ -12,7 +12,7 @@ OrderFlow currently has a Spring Boot backend foundation with correctness contro
 - The default event mode is `outbox-kafka`; direct synchronous processing is kept for tests and benchmark-style comparison only.
 - Outbox and DLQ metadata are stored in PostgreSQL so retry state is visible even when event processing fails.
 - The console calls backend APIs through `frontend/src/api/` and uses SSE for live health snapshots.
-- Internal planning material belongs in ignored private documentation and should not be referenced from public-facing files.
+- Private planning material belongs in ignored private documentation and should not be referenced from public-facing files.
 
 ## Expected Local Development Flow
 
@@ -20,7 +20,9 @@ OrderFlow currently has a Spring Boot backend foundation with correctness contro
 - Use `./gradlew test` for the backend test suite.
 - Use `npm test`, `npm run build`, and `npm run e2e` from `frontend/` for the console checks.
 - Use `docker compose up --build` for the local PostgreSQL, Redis, Redpanda, backend, and frontend runtime.
-- Use `./gradlew benchmarkOrderCorrectness -Pmode=improved` and `./gradlew benchmarkOrderCorrectness -Pmode=baseline` for the M2 correctness benchmark.
+- Use `./scripts/benchmark/run-evidence-package --smoke` for a quick benchmark report-generation check.
+- Use `./scripts/benchmark/run-evidence-package` for the full local benchmark evidence package.
+- Use `./scripts/demo/seed-data.sh` after the Docker Compose stack is up to seed sample inventory and one sample order.
 - Prefer reproducible local dependencies through Docker Compose.
 - Keep public docs in sync with implemented behavior, not aspirational behavior.
 
@@ -34,9 +36,30 @@ OrderFlow currently has a Spring Boot backend foundation with correctness contro
 - M4 backend tests cover operations-console read APIs for order filtering, inventory visibility, and health counters.
 - M4 frontend tests cover page-level error fallback, loading/empty/error/retry UI states, order timeline navigation, and manual retry.
 - M4 Playwright tests cover browser workflows for order creation to timeline and failed-event manual retry.
+- M5 benchmark smoke covers JSON and Markdown report generation for correctness and async reliability suites.
 - On Docker Desktop for macOS, `DOCKER_HOST=unix://$HOME/.docker/run/docker.sock ./gradlew test --no-daemon` may be needed when the default socket is not detected.
 - Keep benchmark and comparison modes runnable in the current codebase when they are used to prove an engineering mechanism.
 - Baseline modes should stay isolated to test, benchmark, or evaluation profiles. Default runtime paths should use the improved implementation.
+
+## Benchmark Evidence
+
+Benchmark reports are generated under `benchmarks/results/`, which is ignored by Git. Each run writes JSON for machine-readable evidence and Markdown for review.
+
+Correctness benchmark:
+
+```bash
+./scripts/benchmark/order-correctness --mode improved
+./scripts/benchmark/order-correctness --mode baseline
+```
+
+Async reliability benchmark:
+
+```bash
+./scripts/benchmark/async-reliability --mode outbox-kafka
+./scripts/benchmark/async-reliability --mode direct
+```
+
+The full evidence package defaults to the larger local targets documented in `benchmarks/README.md`. CI uses smoke-sized runs so pull requests still get fast report-generation coverage.
 
 ## Event Processing Modes
 
@@ -90,5 +113,5 @@ The Playwright configuration uses port `5178` for tests so it does not accidenta
 ## Public And Private Documentation Boundary
 
 - Public files must be written in English and should only describe the engineering project.
-- Private planning, local strategy, and non-public decision context must stay in ignored internal files.
+- Private planning, local strategy, and non-public decision context must stay in ignored private files.
 - Public documentation must not claim planned features, benchmark numbers, or deployment paths as complete before they are implemented and verified.

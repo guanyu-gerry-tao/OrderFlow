@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE="outbox-kafka"
+SYNTHETIC_ORDERS="${ORDERFLOW_BENCHMARK_SYNTHETIC_ORDERS:-10000}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode)
+      MODE="$2"
+      shift 2
+      ;;
+    --synthetic-orders)
+      SYNTHETIC_ORDERS="$2"
+      shift 2
+      ;;
+    --smoke)
+      SYNTHETIC_ORDERS="25"
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+./gradlew benchmarkAsyncReliability \
+  -Pmode="${MODE}" \
+  -PsyntheticOrders="${SYNTHETIC_ORDERS}" \
+  --no-daemon

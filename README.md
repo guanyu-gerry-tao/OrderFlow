@@ -18,12 +18,13 @@ OrderFlow is a distributed order management system with a local backend foundati
 - React TypeScript operations console for order creation, order timeline inspection, inventory visibility, failed-event recovery, service health, and live SSE health snapshots.
 - Typed frontend API client layer that centralizes backend calls and request error handling.
 - Frontend unit tests and Playwright e2e tests for the core console workflows.
-- Minimal backend CI for the Gradle test suite and backend jar build smoke.
+- GitHub Actions regression jobs for backend tests, frontend tests, frontend build, mocked console e2e smoke, and benchmark report smoke.
+- Repeatable benchmark scripts that generate JSON and Markdown evidence for order correctness and async reliability modes.
+- Demo scripts for local Docker Compose startup and seed data.
 
 ## Planned Capabilities
 
-- Expanded CI that runs backend, frontend, and e2e regression checks.
-- Repeatable tests and benchmark reports for asynchronous reliability scenarios.
+- Optional cloud deployment mapping and cloud benchmark evidence.
 
 ## Tech Stack
 
@@ -31,8 +32,7 @@ OrderFlow is a distributed order management system with a local backend foundati
 - Frontend: React, TypeScript, Vite, and Playwright.
 - Testing: JUnit and Testcontainers for backend workflow, cache, concurrency, outbox, retry, and DLQ behavior.
 - Infrastructure: Docker Compose for local PostgreSQL, Redis, Redpanda, backend, and frontend runtime.
-- CI: GitHub Actions for backend tests and a backend jar build smoke.
-- Planned later: expanded CI and async reliability benchmark automation.
+- CI: GitHub Actions for backend, frontend, e2e, build, and benchmark report smoke checks.
 
 ## Current Status
 
@@ -104,11 +104,28 @@ curl http://localhost:8080/api/operations/health
 curl http://localhost:8080/api/realtime/events
 ```
 
-Run the correctness benchmark modes:
+Run the benchmark modes:
 
 ```bash
-./gradlew benchmarkOrderCorrectness -Pmode=improved
-./gradlew benchmarkOrderCorrectness -Pmode=baseline
+./scripts/benchmark/order-correctness --mode improved
+./scripts/benchmark/order-correctness --mode baseline
+./scripts/benchmark/async-reliability --mode outbox-kafka
+./scripts/benchmark/async-reliability --mode direct
 ```
 
-Local benchmark results are written under `benchmarks/results/order-correctness/`, which is ignored by Git.
+For a quick report-generation smoke:
+
+```bash
+./scripts/benchmark/run-evidence-package --smoke
+```
+
+Local benchmark results are written under `benchmarks/results/`, which is ignored by Git. See `benchmarks/README.md` for full-size benchmark commands and report details.
+
+Start the local demo stack and seed sample data:
+
+```bash
+./scripts/demo/run-local-demo.sh
+./scripts/demo/seed-data.sh
+```
+
+See `docs/ARCHITECTURE.md` for the architecture, state flow, outbox recovery flow, and benchmark mode boundaries.

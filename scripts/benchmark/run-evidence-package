@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUN_MODE="full"
+
+if [[ "${1:-}" == "--smoke" ]]; then
+  RUN_MODE="smoke"
+fi
+
+if [[ "${RUN_MODE}" == "smoke" ]]; then
+  ./scripts/benchmark/order-correctness --mode improved --smoke
+  ./scripts/benchmark/order-correctness --mode baseline --smoke
+  ./scripts/benchmark/async-reliability --mode outbox-kafka --smoke
+  ./scripts/benchmark/async-reliability --mode direct --smoke
+else
+  ./scripts/benchmark/order-correctness --mode improved
+  ./scripts/benchmark/order-correctness --mode baseline
+  ./scripts/benchmark/async-reliability --mode outbox-kafka
+  ./scripts/benchmark/async-reliability --mode direct
+fi

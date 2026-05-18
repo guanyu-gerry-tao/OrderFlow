@@ -49,8 +49,6 @@ import org.testcontainers.utility.DockerImageName;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class OrderCorrectnessBenchmarkTest {
 
-    private static final int REPEATED_SUBMIT_ATTEMPTS = 20;
-    private static final int CONCURRENT_ATTEMPTS = 200;
     private static final int INITIAL_STOCK = 25;
 
     @Container
@@ -118,15 +116,26 @@ class OrderCorrectnessBenchmarkTest {
                 "orderflow.benchmark.outputDir",
                 "benchmarks/results/order-correctness"
         ));
-        Files.createDirectories(outputDirectory);
-        Path outputFile = outputDirectory.resolve(mode + ".json");
-        objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputFile.toFile(), benchmarkResult);
+        BenchmarkReportWriter writer = new BenchmarkReportWriter(objectMapper);
+        BenchmarkReportFiles reportFiles = writer.writeReport(
+                outputDirectory,
+                mode,
+                mode,
+                "Order Correctness Benchmark",
+                benchmarkResult
+        );
 
-        assertThat(Files.exists(outputFile)).isTrue();
+        assertThat(Files.exists(reportFiles.jsonPath())).isTrue();
+        assertThat(Files.exists(reportFiles.markdownPath())).isTrue();
     }
 
     private ObjectNode runRepeatedSubmitScenario() {
-        restTemplate.postForEntity("/api/inventory/seed", new SeedInventoryRequest("SKU-BENCH-IDEM", 100), Void.class);
+        int repeatedSubmitAttempts = integerProperty("orderflow.benchmark.repeatedSubmitAttempts", 20);
+        restTemplate.postForEntity(
+                "/api/inventory/seed",
+                new SeedInventoryRequest("SKU-BENCH-IDEM", repeatedSubmitAttempts + 10),
+                Void.class
+        );
         CreateOrderRequest createOrderRequest = new CreateOrderRequest(
                 "customer-benchmark-idempotency",
                 List.of(new CreateOrderItemRequest("SKU-BENCH-IDEM", 1))
@@ -138,7 +147,7 @@ class OrderCorrectnessBenchmarkTest {
         Instant startedAt = Instant.now();
         List<ResponseEntity<OrderResponse>> responses = new ArrayList<>();
 
-        for (int attempt = 0; attempt < REPEATED_SUBMIT_ATTEMPTS; attempt++) {
+        for (int attempt = 0; attempt < repeatedSubmitAttempts; attempt++) {
             responses.add(restTemplate.postForEntity("/api/orders", requestEntity, OrderResponse.class));
         }
 
@@ -149,7 +158,7 @@ class OrderCorrectnessBenchmarkTest {
         long duplicateOrders = Math.max(0, logicalOrders - 1);
 
         ObjectNode result = objectMapper.createObjectNode();
-        result.put("attempts", REPEATED_SUBMIT_ATTEMPTS);
+        result.put("attempts", repeatedSubmitAttempts);
         result.put("createdResponses", createdResponses);
         result.put("logicalOrders", logicalOrders);
         result.put("duplicateOrders", duplicateOrders);
@@ -163,8 +172,9 @@ class OrderCorrectnessBenchmarkTest {
         CountDownLatch startSignal = new CountDownLatch(1);
         List<Future<HttpStatus>> futures = new ArrayList<>();
         Instant startedAt = Instant.now();
+        int concurrentAttempts = integerProperty("orderflow.benchmark.concurrentAttempts", 200);
 
-        for (int index = 0; index < CONCURRENT_ATTEMPTS; index++) {
+        for (int index = 0; index < concurrentAttempts; index++) {
             futures.add(executorService.submit(createCheckoutAttempt(startSignal, index)));
         }
 
@@ -187,7 +197,7 @@ class OrderCorrectnessBenchmarkTest {
         long oversellCount = Math.max(0, successfulOrders - INITIAL_STOCK);
 
         ObjectNode result = objectMapper.createObjectNode();
-        result.put("attempts", CONCURRENT_ATTEMPTS);
+        result.put("attempts", concurrentAttempts);
         result.put("initialStock", INITIAL_STOCK);
         result.put("successfulOrders", successfulOrders);
         result.put("failedReservations", failedReservations);
@@ -237,5 +247,9 @@ class OrderCorrectnessBenchmarkTest {
         }
 
         return "optimistic-locking";
+    }
+
+    private static int integerProperty(String propertyName, int defaultValue) {
+        return Integer.parseInt(System.getProperty(propertyName, String.valueOf(defaultValue)));
     }
 }
