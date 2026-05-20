@@ -110,7 +110,12 @@ test("views failed events and triggers manual retry", async ({ page }) => {
 
   await page.getByRole("button", { name: "Failed events" }).click();
   await expect(page.getByText("Injected payment timeout")).toBeVisible();
+
+  const retryRequest = page.waitForRequest((request) =>
+    request.url().includes("/dlq/dlq-e2e/retry") && request.method() === "POST"
+  );
   await page.getByRole("button", { name: "Retry" }).click();
 
-  await expect(page.getByRole("button", { name: "Retrying..." })).toBeVisible();
+  await retryRequest;
+  await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
 });

@@ -55,5 +55,22 @@ tasks.register("benchmarkOrderCorrectness", Test) {
     outputs.upToDateWhen { false }
     systemProperty "orderflow.benchmark.enabled", "true"
     systemProperty "orderflow.benchmark.mode", project.findProperty("mode") ?: "improved"
-    systemProperty "orderflow.benchmark.outputDir", "${rootProject.projectDir}/benchmarks/results/order-correctness"
+    systemProperty "orderflow.benchmark.repeatedSubmitAttempts", project.findProperty("repeatedSubmitAttempts") ?: "20"
+    systemProperty "orderflow.benchmark.concurrentAttempts", project.findProperty("concurrentAttempts") ?: "200"
+    systemProperty "orderflow.benchmark.outputDir", project.findProperty("outputDir") ?: "${rootProject.projectDir}/benchmarks/results/full/order-correctness"
+}
+
+tasks.register("benchmarkAsyncReliability", Test) {
+    description = "Runs the OrderFlow M3 async reliability benchmark for direct or outbox-kafka mode."
+    group = "verification"
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags "async-benchmark"
+    }
+    outputs.upToDateWhen { false }
+    systemProperty "orderflow.async.benchmark.enabled", "true"
+    systemProperty "orderflow.async.benchmark.mode", project.findProperty("mode") ?: "outbox-kafka"
+    systemProperty "orderflow.async.benchmark.syntheticOrders", project.findProperty("syntheticOrders") ?: "50"
+    systemProperty "orderflow.async.benchmark.outputDir", project.findProperty("outputDir") ?: "${rootProject.projectDir}/benchmarks/results/full/async-reliability"
 }

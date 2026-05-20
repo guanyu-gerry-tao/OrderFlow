@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+MODE="outbox-kafka"
+SYNTHETIC_ORDERS="${ORDERFLOW_BENCHMARK_SYNTHETIC_ORDERS:-10000}"
+OUTPUT_GROUP="full"
+
+usage() {
+  echo "Usage: $0 [--mode direct|outbox-kafka] [--synthetic-orders N] [--smoke]" >&2
+}
+
+require_value() {
+  if [[ -z "${2:-}" ]]; then
+    usage
+    echo "Missing value for $1" >&2
+    exit 2
+  fi
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode)
+      require_value "$1" "${2:-}"
+      MODE="$2"
+      shift 2
+      ;;
+    --synthetic-orders)
+      require_value "$1" "${2:-}"
+      SYNTHETIC_ORDERS="$2"
+      shift 2
+      ;;
+    --smoke)
+      SYNTHETIC_ORDERS="25"
+      OUTPUT_GROUP="smoke"
+      shift
+      ;;
+    *)
+      usage
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+OUTPUT_DIR="${ORDERFLOW_BENCHMARK_OUTPUT_DIR:-${REPO_ROOT}/benchmarks/results/${OUTPUT_GROUP}/async-reliability}"
+
+cd "${REPO_ROOT}"
+
+./gradlew benchmarkAsyncReliability \
+  -Pmode="${MODE}" \
+  -PsyntheticOrders="${SYNTHETIC_ORDERS}" \
+  -PoutputDir="${OUTPUT_DIR}" \
+  --no-daemon

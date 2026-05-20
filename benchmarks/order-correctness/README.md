@@ -14,6 +14,6 @@ Run the baseline mode:
 ./gradlew benchmarkOrderCorrectness -Pmode=baseline
 ```
 
-Results are written to `benchmarks/results/order-correctness/`, which is intentionally ignored by Git because each run is local evidence.
+Full results are written to `benchmarks/results/full/order-correctness/`. Smoke results are written to `benchmarks/results/smoke/order-correctness/`. Both directories are intentionally ignored by Git because each run is local evidence.
 
 The output includes duplicate order count, oversell count, successful orders, failed reservations, and duration for repeated-submit and concurrent-checkout scenarios.
