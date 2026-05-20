@@ -8,6 +8,7 @@ import com.orderflow.order.OrderRepository;
 import com.orderflow.outbox.OutboxEvent;
 import com.orderflow.outbox.OutboxEventRepository;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -23,7 +24,7 @@ public class DeadLetterReplayService {
     private final OrderRepository orderRepository;
     private final OrderAuditService orderAuditService;
     private final OrderAuditLogRepository orderAuditLogRepository;
-    private final OrderEventConsumer orderEventConsumer;
+    private final ObjectProvider<OrderEventConsumer> orderEventConsumer;
 
     /**
      * Creates the DLQ replay service.
@@ -33,7 +34,7 @@ public class DeadLetterReplayService {
      * @param orderRepository order repository
      * @param orderAuditService audit service
      * @param orderAuditLogRepository audit repository
-     * @param orderEventConsumer event consumer
+     * @param orderEventConsumer event consumer when this process also owns the worker role
      */
     public DeadLetterReplayService(
             DeadLetterEventRepository deadLetterEventRepository,
@@ -41,7 +42,7 @@ public class DeadLetterReplayService {
             OrderRepository orderRepository,
             OrderAuditService orderAuditService,
             OrderAuditLogRepository orderAuditLogRepository,
-            OrderEventConsumer orderEventConsumer
+            ObjectProvider<OrderEventConsumer> orderEventConsumer
     ) {
         this.deadLetterEventRepository = deadLetterEventRepository;
         this.outboxEventRepository = outboxEventRepository;
@@ -58,13 +59,16 @@ public class DeadLetterReplayService {
      */
     public void retry(UUID deadLetterEventId) {
         UUID outboxEventId = requeue(deadLetterEventId);
-        boolean replayed = orderEventConsumer.processEventById(outboxEventId);
+        OrderEventConsumer availableConsumer = orderEventConsumer.getIfAvailable();
+        if (availableConsumer == null) {
+            return;
+        }
+
+        boolean replayed = availableConsumer.processEventById(outboxEventId);
 
         if (!replayed) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "DLQ replay failed; event remains open");
         }
-
-        markReplayed(deadLetterEventId);
     }
 
     private UUID requeue(UUID deadLetterEventId) {
@@ -86,13 +90,6 @@ public class DeadLetterReplayService {
         outboxEvent.requeueForManualRetry();
         outboxEventRepository.save(outboxEvent);
         return outboxEvent.getId();
-    }
-
-    private void markReplayed(UUID deadLetterEventId) {
-        DeadLetterEvent deadLetterEvent = deadLetterEventRepository.findById(deadLetterEventId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "DLQ event not found"));
-        deadLetterEvent.markReplayed();
-        deadLetterEventRepository.save(deadLetterEvent);
     }
 
     private int nextSequenceNumber(UUID orderId) {

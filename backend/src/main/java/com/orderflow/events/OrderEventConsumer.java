@@ -1,5 +1,9 @@
 package com.orderflow.events;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
+import com.orderflow.dlq.DeadLetterEventRepository;
+import com.orderflow.dlq.DeadLetterStatus;
 import com.orderflow.failure.FailureInjectionService;
 import com.orderflow.outbox.OutboxEvent;
 import com.orderflow.outbox.OutboxEventRepository;
@@ -13,12 +17,14 @@ import org.springframework.stereotype.Service;
  * Consumes published order events and applies retry/DLQ handling.
  */
 @Service
+@ConditionalOnRuntimeRole(RuntimeRole.WORKER)
 public class OrderEventConsumer {
 
     private final OutboxEventRepository outboxEventRepository;
     private final OrderEventProcessor orderEventProcessor;
     private final OrderEventFailureHandler orderEventFailureHandler;
     private final FailureInjectionService failureInjectionService;
+    private final DeadLetterEventRepository deadLetterEventRepository;
 
     /**
      * Creates the order event consumer.
@@ -27,17 +33,20 @@ public class OrderEventConsumer {
      * @param orderEventProcessor event processor
      * @param orderEventFailureHandler failure handler
      * @param failureInjectionService failure injection service
+     * @param deadLetterEventRepository DLQ repository
      */
     public OrderEventConsumer(
             OutboxEventRepository outboxEventRepository,
             OrderEventProcessor orderEventProcessor,
             OrderEventFailureHandler orderEventFailureHandler,
-            FailureInjectionService failureInjectionService
+            FailureInjectionService failureInjectionService,
+            DeadLetterEventRepository deadLetterEventRepository
     ) {
         this.outboxEventRepository = outboxEventRepository;
         this.orderEventProcessor = orderEventProcessor;
         this.orderEventFailureHandler = orderEventFailureHandler;
         this.failureInjectionService = failureInjectionService;
+        this.deadLetterEventRepository = deadLetterEventRepository;
     }
 
     /**
@@ -72,10 +81,19 @@ public class OrderEventConsumer {
         try {
             failureInjectionService.maybeFailConsumer(eventId);
             orderEventProcessor.processEvent(eventId);
+            markReplayedDeadLetter(eventId);
             return true;
         } catch (RuntimeException exception) {
             orderEventFailureHandler.recordConsumerFailure(eventId, exception);
             return false;
         }
+    }
+
+    private void markReplayedDeadLetter(UUID outboxEventId) {
+        deadLetterEventRepository.findByOutboxEventIdAndStatus(outboxEventId, DeadLetterStatus.OPEN)
+                .ifPresent(deadLetterEvent -> {
+                    deadLetterEvent.markReplayed();
+                    deadLetterEventRepository.save(deadLetterEvent);
+                });
     }
 }

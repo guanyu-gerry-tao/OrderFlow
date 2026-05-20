@@ -2,6 +2,8 @@ package com.orderflow.events;
 
 import com.orderflow.audit.OrderAuditLogRepository;
 import com.orderflow.audit.OrderAuditService;
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import com.orderflow.inventory.InventoryService;
 import com.orderflow.order.OrderEntity;
 import com.orderflow.order.OrderItemEntity;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Applies published order events to the order workflow.
  */
 @Service
+@ConditionalOnRuntimeRole(RuntimeRole.WORKER)
 public class OrderEventProcessor {
 
     private final OutboxEventRepository outboxEventRepository;

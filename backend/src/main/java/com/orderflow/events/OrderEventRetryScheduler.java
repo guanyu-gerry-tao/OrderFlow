@@ -1,5 +1,7 @@
 package com.orderflow.events;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import com.orderflow.outbox.EventMode;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -8,6 +10,7 @@ import org.springframework.stereotype.Component;
  * Periodically retries due consumer failures recorded in the outbox table.
  */
 @Component
+@ConditionalOnRuntimeRole(RuntimeRole.WORKER)
 public class OrderEventRetryScheduler {
 
     private final EventMode eventMode;

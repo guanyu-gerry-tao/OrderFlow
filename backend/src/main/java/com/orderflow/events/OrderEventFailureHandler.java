@@ -1,5 +1,7 @@
 package com.orderflow.events;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import com.orderflow.dlq.DeadLetterEvent;
 import com.orderflow.dlq.DeadLetterEventRepository;
 import com.orderflow.outbox.OutboxEvent;
@@ -12,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Records consumer failures, retry metadata, and DLQ records.
  */
 @Service
+@ConditionalOnRuntimeRole(RuntimeRole.WORKER)
 public class OrderEventFailureHandler {
 
     private final OutboxEventRepository outboxEventRepository;

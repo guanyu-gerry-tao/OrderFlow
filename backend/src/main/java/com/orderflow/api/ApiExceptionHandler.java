@@ -1,5 +1,7 @@
 package com.orderflow.api;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -11,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
  * Converts common workflow exceptions into explicit API responses.
  */
 @RestControllerAdvice
+@ConditionalOnRuntimeRole(RuntimeRole.API)
 public class ApiExceptionHandler {
 
     /**

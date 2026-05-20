@@ -1,5 +1,7 @@
 package com.orderflow.operations;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/operations")
+@ConditionalOnRuntimeRole(RuntimeRole.API)
 public class OperationsController {
 
     private final OperationsHealthService operationsHealthService;

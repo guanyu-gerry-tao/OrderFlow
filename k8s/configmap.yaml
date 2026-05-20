@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orderflow-config
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orderflow
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+  ORDERFLOW_EVENT_MODE: outbox-kafka
+  ORDERFLOW_EVENT_BROKER: kafka
+  ORDERFLOW_CONSOLE_ALLOWED_ORIGIN: http://localhost:5173

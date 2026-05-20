@@ -1,17 +1,18 @@
 # OrderFlow Architecture
 
-OrderFlow is a containerized order workflow system with a Spring Boot backend, PostgreSQL persistence, Redis idempotency cache, Redpanda/Kafka-compatible event broker, and React TypeScript operations console.
+OrderFlow is a containerized order workflow system with a Spring Boot API process, Spring Boot worker process, PostgreSQL persistence, Redis idempotency cache, Redpanda/Kafka-compatible event broker, and React TypeScript operations console.
 
 ## Runtime View
 
 ```mermaid
 flowchart LR
     user["Operator / developer"] --> console["React operations console"]
-    console --> api["Spring Boot REST API"]
+    console --> api["order-api Spring Boot REST API"]
     api --> postgres["PostgreSQL"]
     api --> redis["Redis idempotency cache"]
     api --> outbox["Transactional outbox table"]
-    outbox --> publisher["Outbox publisher"]
+    outbox --> worker["order-worker"]
+    worker --> publisher["Outbox publisher"]
     publisher --> broker["Redpanda / Kafka topic"]
     broker --> consumer["Order event consumer"]
     consumer --> postgres
@@ -20,7 +21,7 @@ flowchart LR
     sse --> api
 ```
 
-The backend is organized with modular service boundaries rather than separate physical services. Order, inventory, payment simulation, audit, outbox, event processing, DLQ, operations health, and realtime endpoints each have their own package and persistence boundary.
+The backend codebase remains one Spring Boot application, but it can now run as two runtime roles. `order-api` owns REST, console, and SSE endpoints. `order-worker` owns asynchronous outbox publishing, Kafka consumption, retry, and DLQ recovery. Order, inventory, payment simulation, audit, outbox, event processing, DLQ, operations health, and realtime endpoints still keep their own package and persistence boundaries.
 
 ## Order State Flow
 
@@ -49,9 +50,9 @@ sequenceDiagram
     participant Worker as Event Consumer
     participant DLQ as Dead-letter Table
 
-    API->>DB: Save order and outbox event in one transaction
-    Outbox->>DB: Read pending outbox events
-    Outbox->>Kafka: Publish event
+API->>DB: Save order and outbox event in one transaction
+Outbox->>DB: Read pending outbox events from order-worker
+Outbox->>Kafka: Publish event
     Outbox->>DB: Mark event published
     Worker->>DB: Process published event
     Worker->>DB: Mark event processed
@@ -72,3 +73,13 @@ Benchmark modes are kept only for evaluation:
 The default local runtime uses the improved path.
 
 Benchmark report generation uses the recording broker for deterministic CI-friendly evidence. Docker Compose remains the local runtime path for Redpanda/Kafka-backed event publishing.
+
+## API/Worker Runtime Roles
+
+The same backend image supports three runtime roles through `ORDERFLOW_RUNTIME_ROLE`:
+
+- `api`: loads REST and console-facing API components.
+- `worker`: loads outbox publisher, Kafka listener, event consumer, and retry schedulers.
+- `all`: default compatibility mode for tests and single-process local runs.
+
+Docker Compose runs `order-api` and `order-worker` as separate services. The Kubernetes manifests under `k8s/` deploy the same split with readiness and liveness probes. This is intentionally a lightweight API/worker microservice split, not a full decomposition into separate order, inventory, and payment services.

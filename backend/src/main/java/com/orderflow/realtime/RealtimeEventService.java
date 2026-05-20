@@ -1,5 +1,7 @@
 package com.orderflow.realtime;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import com.orderflow.operations.OperationsHealthService;
 import java.io.IOException;
 import java.time.Instant;
@@ -13,6 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * Publishes lightweight live snapshots to browser subscribers.
  */
 @Service
+@ConditionalOnRuntimeRole(RuntimeRole.API)
 public class RealtimeEventService {
 
     private final OperationsHealthService operationsHealthService;

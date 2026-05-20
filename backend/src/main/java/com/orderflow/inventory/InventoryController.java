@@ -1,5 +1,7 @@
 package com.orderflow.inventory;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/inventory")
+@ConditionalOnRuntimeRole(RuntimeRole.API)
 public class InventoryController {
 
     private final InventoryService inventoryService;

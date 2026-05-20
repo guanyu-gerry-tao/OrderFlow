@@ -7,7 +7,8 @@ OrderFlow currently has a Spring Boot backend foundation with correctness contro
 - Backend runtime code has landed under `backend/`.
 - Frontend operations console code has landed under `frontend/`.
 - Public documentation should distinguish implemented backend behavior from planned later milestones.
-- The current runnable service depends on PostgreSQL, Redis, and Redpanda.
+- The current runnable runtime depends on PostgreSQL, Redis, and Redpanda.
+- The backend can run as `order-api`, `order-worker`, or backward-compatible `all` mode through `ORDERFLOW_RUNTIME_ROLE`.
 - PostgreSQL remains the source of truth for idempotency records; Redis is a short-lived response cache.
 - The default event mode is `outbox-kafka`; direct synchronous processing is kept for tests and benchmark-style comparison only.
 - Outbox and DLQ metadata are stored in PostgreSQL so retry state is visible even when event processing fails.
@@ -19,7 +20,8 @@ OrderFlow currently has a Spring Boot backend foundation with correctness contro
 - Keep changes scoped to the active milestone.
 - Use `./gradlew test` for the backend test suite.
 - Use `npm test`, `npm run build`, and `npm run e2e` from `frontend/` for the console checks.
-- Use `docker compose up --build` for the local PostgreSQL, Redis, Redpanda, backend, and frontend runtime.
+- Use `docker compose up --build` for the local PostgreSQL, Redis, Redpanda, `order-api`, `order-worker`, and frontend runtime.
+- Use `./scripts/smoke/run-api-worker-smoke.sh manifest` to validate Docker Compose service wiring and Kubernetes manifests.
 - Use `./scripts/benchmark/run-evidence-package --smoke` for a quick benchmark report-generation check.
 - Use `./scripts/benchmark/run-evidence-package` for the full local benchmark evidence package.
 - Use `./scripts/demo/seed-data.sh` after the Docker Compose stack is up to seed sample inventory and one sample order.
@@ -68,6 +70,7 @@ The async reliability benchmark uses the recording broker for deterministic repo
 Default local runtime:
 
 ```text
+ORDERFLOW_RUNTIME_ROLE=api|worker
 ORDERFLOW_EVENT_MODE=outbox-kafka
 ORDERFLOW_EVENT_BROKER=kafka
 SPRING_KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
@@ -81,6 +84,8 @@ ORDERFLOW_EVENT_BROKER=recording
 ```
 
 The direct mode is not the normal runtime path. It exists so the synchronous M1/M2 behaviors remain testable while the default service uses the reliable outbox path.
+
+`ORDERFLOW_RUNTIME_ROLE=all` is the compatibility mode used by tests and single-process experiments. Docker Compose and Kubernetes use separate `api` and `worker` roles.
 
 ## Operations Console
 

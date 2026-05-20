@@ -21,6 +21,8 @@ OrderFlow is a distributed order management system with a local backend foundati
 - GitHub Actions regression jobs for backend tests, frontend tests, frontend build, mocked console e2e smoke, and benchmark report smoke.
 - Repeatable benchmark scripts that generate JSON and Markdown evidence for order correctness and async reliability modes.
 - Demo scripts for local Docker Compose startup and seed data.
+- API/worker runtime split for separating synchronous REST traffic from asynchronous outbox, Kafka, retry, and DLQ recovery.
+- Local Kubernetes manifests for `order-api`, `order-worker`, PostgreSQL, Redis, and Redpanda with readiness and liveness probes.
 
 ## Planned Capabilities
 
@@ -31,12 +33,12 @@ OrderFlow is a distributed order management system with a local backend foundati
 - Backend: Java 17 target, Spring Boot, Spring Data JPA, Spring Data Redis, Spring Kafka, Flyway, PostgreSQL, Redis, and Redpanda.
 - Frontend: React, TypeScript, Vite, and Playwright.
 - Testing: JUnit and Testcontainers for backend workflow, cache, concurrency, outbox, retry, and DLQ behavior.
-- Infrastructure: Docker Compose for local PostgreSQL, Redis, Redpanda, backend, and frontend runtime.
+- Infrastructure: Docker Compose for local PostgreSQL, Redis, Redpanda, `order-api`, `order-worker`, and frontend runtime; local Kubernetes manifests for API/worker deployment evidence.
 - CI: GitHub Actions for backend, frontend, e2e, build, and benchmark report smoke checks.
 
 ## Current Status
 
-The first four milestones are implemented. The backend exposes REST APIs to seed inventory, create an order, list and fetch order details, fetch an order timeline, list inventory, list DLQ records, manually retry a DLQ event, fetch operations health, and stream live SSE health snapshots. The frontend console consumes those APIs through a typed client layer. The default runtime event mode is `outbox-kafka`; direct synchronous processing remains available only for tests and benchmark-style comparisons.
+The backend exposes REST APIs to seed inventory, create an order, list and fetch order details, fetch an order timeline, list inventory, list DLQ records, manually retry a DLQ event, fetch operations health, and stream live SSE health snapshots. The frontend console consumes those APIs through a typed client layer. The default runtime event mode is `outbox-kafka`; direct synchronous processing remains available only for tests and benchmark-style comparisons. The local runtime now supports an API/worker split: `order-api` owns REST and console APIs, while `order-worker` owns outbox publishing, Kafka consumption, retry, and DLQ recovery.
 
 ## Local Development
 
@@ -68,13 +70,13 @@ npm run build
 npm run e2e
 ```
 
-Start PostgreSQL, Redis, Redpanda, backend, and frontend locally:
+Start PostgreSQL, Redis, Redpanda, `order-api`, `order-worker`, and frontend locally:
 
 ```bash
 docker compose up --build
 ```
 
-The backend listens on `http://localhost:8080`. The console is served on `http://localhost:5173`.
+The API listens on `http://localhost:8080`. The worker exposes actuator health on `http://localhost:8081`. The console is served on `http://localhost:5173`.
 
 Seed inventory and create an order:
 
@@ -129,3 +131,11 @@ Start the local demo stack and seed sample data:
 ```
 
 See `docs/ARCHITECTURE.md` for the architecture, state flow, outbox recovery flow, and benchmark mode boundaries.
+
+Validate the API/worker service split and Kubernetes manifests:
+
+```bash
+./scripts/smoke/run-api-worker-smoke.sh manifest
+```
+
+For local Kubernetes details, see `k8s/README.md` and `docs/milestones/M7_API_WORKER_KUBERNETES.md`.
