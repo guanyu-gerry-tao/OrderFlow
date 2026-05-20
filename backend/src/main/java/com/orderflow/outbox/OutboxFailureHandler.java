@@ -1,5 +1,7 @@
 package com.orderflow.outbox;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import com.orderflow.dlq.DeadLetterEvent;
 import com.orderflow.dlq.DeadLetterEventRepository;
 import org.springframework.stereotype.Service;
@@ -8,6 +10,7 @@ import org.springframework.stereotype.Service;
  * Applies retry and DLQ handling for outbox publish failures.
  */
 @Service
+@ConditionalOnRuntimeRole(RuntimeRole.WORKER)
 public class OutboxFailureHandler {
 
     private final DeadLetterEventRepository deadLetterEventRepository;

@@ -1,5 +1,7 @@
 package com.orderflow.outbox;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -7,6 +9,7 @@ import org.springframework.stereotype.Component;
  * Periodically publishes due outbox events in the reliable event mode.
  */
 @Component
+@ConditionalOnRuntimeRole(RuntimeRole.WORKER)
 public class OutboxPublisherScheduler {
 
     private final EventMode eventMode;

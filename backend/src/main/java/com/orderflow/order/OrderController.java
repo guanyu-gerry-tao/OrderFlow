@@ -1,5 +1,7 @@
 package com.orderflow.order;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/orders")
+@ConditionalOnRuntimeRole(RuntimeRole.API)
 public class OrderController {
 
     private final OrderWorkflowService orderWorkflowService;

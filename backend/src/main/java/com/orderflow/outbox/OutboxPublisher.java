@@ -1,5 +1,7 @@
 package com.orderflow.outbox;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import com.orderflow.events.EventBroker;
 import java.time.Instant;
 import java.util.List;
@@ -10,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Publishes due outbox events to the configured event broker.
  */
 @Service
+@ConditionalOnRuntimeRole(RuntimeRole.WORKER)
 public class OutboxPublisher {
 
     private final OutboxEventRepository outboxEventRepository;

@@ -1,5 +1,7 @@
 package com.orderflow.dlq;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/dlq")
+@ConditionalOnRuntimeRole(RuntimeRole.API)
 public class DeadLetterController {
 
     private final DeadLetterEventRepository deadLetterEventRepository;

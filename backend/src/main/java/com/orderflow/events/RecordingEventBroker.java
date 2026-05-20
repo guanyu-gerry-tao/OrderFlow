@@ -1,5 +1,7 @@
 package com.orderflow.events;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(name = "orderflow.events.broker", havingValue = "recording")
+@ConditionalOnRuntimeRole(RuntimeRole.WORKER)
 public class RecordingEventBroker implements EventBroker {
 
     private final List<OrderEventMessage> publishedMessages = new ArrayList<>();

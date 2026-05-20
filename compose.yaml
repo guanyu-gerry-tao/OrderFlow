@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: orderflow
       POSTGRES_PASSWORD: orderflow
     ports:
-      - "5432:5432"
+      - "${ORDERFLOW_POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U orderflow -d orderflow"]
       interval: 5s
@@ -16,7 +16,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${ORDERFLOW_REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -41,20 +41,41 @@ services:
       - --kafka-addr
       - PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
       - --advertise-kafka-addr
-      - PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+      - PLAINTEXT://redpanda:9092,OUTSIDE://localhost:${ORDERFLOW_REDPANDA_PORT:-19092}
     ports:
-      - "19092:19092"
+      - "${ORDERFLOW_REDPANDA_PORT:-19092}:19092"
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.*true'"]
       interval: 10s
       timeout: 5s
       retries: 10
 
-  backend:
+  order-api:
     build:
       context: .
       dockerfile: backend/Dockerfile
     environment:
+      ORDERFLOW_RUNTIME_ROLE: api
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orderflow
+      SPRING_DATASOURCE_USERNAME: orderflow
+      SPRING_DATASOURCE_PASSWORD: orderflow
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      ORDERFLOW_EVENT_MODE: outbox-kafka
+    ports:
+      - "${ORDERFLOW_API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  order-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      ORDERFLOW_RUNTIME_ROLE: worker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orderflow
       SPRING_DATASOURCE_USERNAME: orderflow
       SPRING_DATASOURCE_PASSWORD: orderflow
@@ -64,7 +85,7 @@ services:
       ORDERFLOW_EVENT_MODE: outbox-kafka
       ORDERFLOW_EVENT_BROKER: kafka
     ports:
-      - "8080:8080"
+      - "${ORDERFLOW_WORKER_PORT:-8081}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,6 +101,6 @@ services:
     environment:
       VITE_API_BASE_URL: http://localhost:8080/api
     ports:
-      - "5173:80"
+      - "${ORDERFLOW_FRONTEND_PORT:-5173}:80"
     depends_on:
-      - backend
+      - order-api

@@ -1,5 +1,7 @@
 package com.orderflow.realtime;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,6 +13,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  */
 @RestController
 @RequestMapping("/api/realtime")
+@ConditionalOnRuntimeRole(RuntimeRole.API)
 public class RealtimeEventController {
 
     private final RealtimeEventService realtimeEventService;

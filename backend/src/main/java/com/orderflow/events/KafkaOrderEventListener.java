@@ -1,5 +1,7 @@
 package com.orderflow.events;
 
+import com.orderflow.config.ConditionalOnRuntimeRole;
+import com.orderflow.config.RuntimeRole;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -9,6 +11,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(name = "orderflow.events.broker", havingValue = "kafka", matchIfMissing = true)
+@ConditionalOnRuntimeRole(RuntimeRole.WORKER)
 public class KafkaOrderEventListener {
 
     private final OrderEventConsumer orderEventConsumer;

@@ -1,5 +1,6 @@
 package com.orderflow.dlq;
 
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -15,4 +16,13 @@ public interface DeadLetterEventRepository extends JpaRepository<DeadLetterEvent
      * @return matching DLQ count
      */
     long countByStatus(DeadLetterStatus status);
+
+    /**
+     * Finds a DLQ record for a source outbox event and status.
+     *
+     * @param outboxEventId source outbox event id
+     * @param status DLQ status
+     * @return matching DLQ event if present
+     */
+    Optional<DeadLetterEvent> findByOutboxEventIdAndStatus(UUID outboxEventId, DeadLetterStatus status);
 }
