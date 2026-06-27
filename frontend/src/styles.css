@@ -183,6 +183,35 @@ button:disabled {
   gap: 14px;
 }
 
+.checkout-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.checkout-summary p {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.checkout-summary p:first-child {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.checkout-summary button {
+  min-height: 40px;
+  margin-top: 4px;
+  border-radius: 7px;
+  color: #ffffff;
+  background: #0f766e;
+  font-weight: 700;
+}
+
 .stacked-form label {
   display: grid;
   gap: 7px;

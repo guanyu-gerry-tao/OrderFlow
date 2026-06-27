@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import type { OrderResponse, OrderStatus } from "../api/types";
+import type { CheckoutSessionResponse, OrderResponse, OrderStatus } from "../api/types";
 import { EmptyState, ErrorState, StatusPill } from "../components/StateViews";
 
 interface OrdersPageProps {
@@ -8,28 +8,32 @@ interface OrdersPageProps {
   statusFilter: OrderStatus | "";
   search: string;
   createError: string;
+  activeCheckout: CheckoutSessionResponse | undefined;
   loadError: string;
   isCreating: boolean;
+  isConfirmingCheckout: boolean;
   onStatusFilterChange: (status: OrderStatus | "") => void;
   onSearchChange: (search: string) => void;
   onSelectOrder: (orderId: string) => void;
-  onCreateOrder: (payload: {
+  onStartCheckout: (payload: {
     customerId: string;
     sku: string;
     quantity: number;
-    idempotencyKey: string;
   }) => Promise<void>;
+  onConfirmCheckout: () => Promise<void>;
   onRefresh: () => void;
 }
 
 const orderStatuses: Array<OrderStatus | ""> = [
   "",
+  "PENDING_PAYMENT",
   "CREATED",
   "INVENTORY_RESERVED",
   "PAYMENT_AUTHORIZED",
   "COMPLETED",
   "FAILED",
-  "CANCELLED"
+  "CANCELLED",
+  "EXPIRED"
 ];
 
 export function OrdersPage({
@@ -38,23 +42,25 @@ export function OrdersPage({
   statusFilter,
   search,
   createError,
+  activeCheckout,
   loadError,
   isCreating,
+  isConfirmingCheckout,
   onStatusFilterChange,
   onSearchChange,
   onSelectOrder,
-  onCreateOrder,
+  onStartCheckout,
+  onConfirmCheckout,
   onRefresh
 }: OrdersPageProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
-    await onCreateOrder({
+    await onStartCheckout({
       customerId: String(formData.get("customerId") ?? ""),
       sku: String(formData.get("sku") ?? ""),
-      quantity: Number(formData.get("quantity") ?? 1),
-      idempotencyKey: String(formData.get("idempotencyKey") ?? "")
+      quantity: Number(formData.get("quantity") ?? 1)
     });
   }
 
@@ -62,8 +68,8 @@ export function OrdersPage({
     <section className="workspace-grid">
       <div className="panel panel-form">
         <div className="panel-heading">
-          <h2>Create order</h2>
-          <p>Seed inventory first, then create a small workflow order.</p>
+          <h2>Start checkout</h2>
+          <p>Seed inventory first, then create a pending checkout order.</p>
         </div>
         <form className="stacked-form" onSubmit={handleSubmit}>
           <label>
@@ -78,15 +84,22 @@ export function OrdersPage({
             Quantity
             <input name="quantity" type="number" min="1" defaultValue="1" required />
           </label>
-          <label>
-            Idempotency key
-            <input name="idempotencyKey" defaultValue={`console-${Date.now()}`} required />
-          </label>
           {createError !== "" ? <p className="form-error">{createError}</p> : null}
           <button type="submit" disabled={isCreating}>
-            {isCreating ? "Creating..." : "Create order"}
+            {isCreating ? "Starting..." : "Start checkout"}
           </button>
         </form>
+        {activeCheckout !== undefined ? (
+          <div className="checkout-summary">
+            <p className="mono">{shortId(activeCheckout.checkoutSessionId)}</p>
+            <p>Order {shortId(activeCheckout.order.orderId)} · {activeCheckout.order.status}</p>
+            <p>Payment {shortId(activeCheckout.paymentAttempt.paymentAttemptId)}</p>
+            <p className="mono">{activeCheckout.paymentAttempt.idempotencyKey}</p>
+            <button type="button" disabled={isConfirmingCheckout} onClick={onConfirmCheckout}>
+              {isConfirmingCheckout ? "Confirming..." : "Confirm payment"}
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div className="panel panel-list">

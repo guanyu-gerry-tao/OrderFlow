@@ -12,6 +12,37 @@ const sampleOrder = {
   updatedAt: "2026-05-17T10:00:10Z"
 };
 
+const checkoutOrder = {
+  orderId: "33333333-3333-3333-3333-333333333333",
+  customerId: "customer-console-101",
+  status: "PENDING_PAYMENT",
+  items: [{ orderItemId: "item-checkout", sku: "SKU-M1", quantity: 1 }],
+  createdAt: "2026-05-17T10:02:00Z",
+  updatedAt: "2026-05-17T10:02:00Z"
+};
+
+const confirmedCheckoutOrder = {
+  ...checkoutOrder,
+  status: "CREATED",
+  updatedAt: "2026-05-17T10:03:00Z"
+};
+
+const checkoutSession = {
+  checkoutSessionId: "44444444-4444-4444-4444-444444444444",
+  status: "ACTIVE",
+  order: checkoutOrder,
+  paymentAttempt: {
+    paymentAttemptId: "55555555-5555-5555-5555-555555555555",
+    idempotencyKey: "authorize:55555555-5555-5555-5555-555555555555",
+    status: "INITIATED",
+    expiresAt: "2026-05-17T10:17:00Z"
+  },
+  requestAttemptId: null,
+  requestAttemptStatus: null,
+  createdAt: "2026-05-17T10:02:00Z",
+  expiresAt: "2026-05-17T10:17:00Z"
+};
+
 const sampleHealth = {
   generatedAt: "2026-05-17T10:00:00Z",
   backendStatus: "UP",
@@ -62,12 +93,23 @@ class TestEventSource {
 let failingEndpoint = "";
 let deadLetterRequestCount = 0;
 let healthRequestCount = 0;
+let checkoutCreateRequestCount = 0;
+let checkoutGetRequestCount = 0;
+let checkoutConfirmRequestCount = 0;
+let ordersResponse: unknown[] = [sampleOrder];
+let testStorage: Storage;
 
 describe("App", () => {
   beforeEach(() => {
     failingEndpoint = "";
     deadLetterRequestCount = 0;
     healthRequestCount = 0;
+    checkoutCreateRequestCount = 0;
+    checkoutGetRequestCount = 0;
+    checkoutConfirmRequestCount = 0;
+    ordersResponse = [sampleOrder];
+    testStorage = createTestStorage();
+    vi.stubGlobal("localStorage", testStorage);
     vi.stubGlobal("EventSource", TestEventSource);
     vi.stubGlobal("fetch", vi.fn(mockFetch));
   });
@@ -129,6 +171,48 @@ describe("App", () => {
 
     expect(await screen.findByText("Backend unavailable")).toBeInTheDocument();
     expect(screen.getByText("All endpoints failed")).toBeInTheDocument();
+  });
+
+  it("starts checkout and restores the same active session after reload", async () => {
+    const firstRender = render(<App />);
+
+    await screen.findByText("customer-console-101");
+    await userEvent.click(screen.getByRole("button", { name: "Start checkout" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("PENDING_PAYMENT").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText("authorize:55555555-5555-5555-5555-555555555555")).toBeInTheDocument();
+    expect(checkoutCreateRequestCount).toBe(1);
+    expect(localStorage.getItem("orderflow.activeCheckoutSessionId")).toBe(checkoutSession.checkoutSessionId);
+
+    firstRender.unmount();
+    render(<App />);
+
+    expect(await screen.findByText("authorize:55555555-5555-5555-5555-555555555555")).toBeInTheDocument();
+    expect(checkoutGetRequestCount).toBeGreaterThanOrEqual(1);
+    expect(checkoutCreateRequestCount).toBe(1);
+  });
+
+  it("confirms the same payment attempt twice while request attempt ids change", async () => {
+    ordersResponse = [checkoutOrder];
+    localStorage.setItem("orderflow.activeCheckoutSessionId", checkoutSession.checkoutSessionId);
+
+    render(<App />);
+
+    expect(await screen.findByText("authorize:55555555-5555-5555-5555-555555555555")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm payment" }));
+
+    expect(await screen.findByRole("heading", { name: "Order timeline" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Orders" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm payment" }));
+
+    await waitFor(() => {
+      expect(checkoutConfirmRequestCount).toBe(2);
+    });
+    expect(localStorage.getItem("orderflow.activeCheckoutSessionId")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Orders" }));
+    expect(screen.getByText("authorize:55555555-5555-5555-5555-555555555555")).toBeInTheDocument();
   });
 
   it("reflects SSE connection and snapshot events in the health view", async () => {
@@ -195,8 +279,49 @@ async function mockFetch(input: RequestInfo | URL, init?: RequestInit) {
       ]
     });
   }
+  if (url.includes("/api/orders/33333333-3333-3333-3333-333333333333/timeline")) {
+    return jsonResponse({
+      events: [
+        {
+          fromStatus: "PENDING_PAYMENT",
+          toStatus: "CREATED",
+          message: "Payment confirmed",
+          createdAt: "2026-05-17T10:03:00Z",
+          sequenceNumber: 2
+        }
+      ]
+    });
+  }
+  if (url.includes("/api/checkout-sessions/44444444-4444-4444-4444-444444444444/confirm")
+      && method === "POST") {
+    checkoutConfirmRequestCount += 1;
+    ordersResponse = [confirmedCheckoutOrder];
+    return jsonResponse({
+      ...checkoutSession,
+      status: "CONFIRMED",
+      order: confirmedCheckoutOrder,
+      paymentAttempt: {
+        ...checkoutSession.paymentAttempt,
+        status: "AUTHORIZED"
+      },
+      requestAttemptId: checkoutConfirmRequestCount === 1
+        ? "66666666-6666-6666-6666-666666666666"
+        : "77777777-7777-7777-7777-777777777777",
+      requestAttemptStatus: checkoutConfirmRequestCount === 1 ? "AUTHORIZED" : "REPLAYED"
+    });
+  }
+  if (url.includes("/api/checkout-sessions/44444444-4444-4444-4444-444444444444")
+      && method === "GET") {
+    checkoutGetRequestCount += 1;
+    return jsonResponse(checkoutSession);
+  }
+  if (url.includes("/api/checkout-sessions") && method === "POST") {
+    checkoutCreateRequestCount += 1;
+    ordersResponse = [checkoutOrder];
+    return jsonResponse(checkoutSession, 201);
+  }
   if (url.includes("/api/orders") && method === "GET") {
-    return jsonResponse([sampleOrder]);
+    return jsonResponse(ordersResponse);
   }
   if (url.includes("/api/orders") && method === "POST") {
     return jsonResponse(sampleOrder, 201);
@@ -243,4 +368,29 @@ function jsonResponse(body: unknown, status = 200) {
       headers: { "Content-Type": "application/json" }
     })
   );
+}
+
+function createTestStorage(): Storage {
+  const values = new Map<string, string>();
+
+  return {
+    get length() {
+      return values.size;
+    },
+    clear() {
+      values.clear();
+    },
+    getItem(key: string) {
+      return values.get(key) ?? null;
+    },
+    key(index: number) {
+      return Array.from(values.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      values.delete(key);
+    },
+    setItem(key: string, value: string) {
+      values.set(key, value);
+    }
+  };
 }

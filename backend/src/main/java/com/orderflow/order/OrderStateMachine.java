@@ -9,12 +9,14 @@ import java.util.Set;
 public class OrderStateMachine {
 
     private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = Map.of(
+            OrderStatus.PENDING_PAYMENT, Set.of(OrderStatus.CREATED, OrderStatus.EXPIRED, OrderStatus.CANCELLED),
             OrderStatus.CREATED, Set.of(OrderStatus.INVENTORY_RESERVED, OrderStatus.FAILED, OrderStatus.CANCELLED),
             OrderStatus.INVENTORY_RESERVED, Set.of(OrderStatus.PAYMENT_AUTHORIZED, OrderStatus.FAILED, OrderStatus.CANCELLED),
             OrderStatus.PAYMENT_AUTHORIZED, Set.of(OrderStatus.COMPLETED, OrderStatus.FAILED, OrderStatus.CANCELLED),
             OrderStatus.COMPLETED, Set.of(),
             OrderStatus.FAILED, Set.of(),
-            OrderStatus.CANCELLED, Set.of()
+            OrderStatus.CANCELLED, Set.of(),
+            OrderStatus.EXPIRED, Set.of()
     );
 
     /**

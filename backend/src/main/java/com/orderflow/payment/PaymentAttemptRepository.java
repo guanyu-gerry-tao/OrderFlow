@@ -1,6 +1,7 @@
 package com.orderflow.payment;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -16,4 +17,12 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
      * @return payment attempts for the order
      */
     List<PaymentAttempt> findByOrderId(UUID orderId);
+
+    /**
+     * Finds a payment attempt by idempotency key.
+     *
+     * @param idempotencyKey idempotency key
+     * @return matching payment attempt
+     */
+    Optional<PaymentAttempt> findByIdempotencyKey(String idempotencyKey);
 }

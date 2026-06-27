@@ -8,6 +8,7 @@ OrderFlow is a containerized order workflow system with a Spring Boot API proces
 flowchart LR
     user["Operator / developer"] --> console["React operations console"]
     console --> api["order-api Spring Boot REST API"]
+    api --> checkout["Checkout session / payment attempt"]
     api --> postgres["PostgreSQL"]
     api --> redis["Redis idempotency cache"]
     api --> outbox["Transactional outbox table"]
@@ -27,7 +28,10 @@ The backend codebase remains one Spring Boot application, but it can now run as 
 
 ```mermaid
 stateDiagram-v2
-    [*] --> CREATED
+    [*] --> PENDING_PAYMENT
+    PENDING_PAYMENT --> CREATED
+    PENDING_PAYMENT --> EXPIRED
+    PENDING_PAYMENT --> CANCELLED
     CREATED --> INVENTORY_RESERVED
     INVENTORY_RESERVED --> PAYMENT_AUTHORIZED
     PAYMENT_AUTHORIZED --> COMPLETED
@@ -38,6 +42,21 @@ stateDiagram-v2
 ```
 
 The state machine keeps workflow transitions explicit. Audit log entries make each state change visible to the order timeline and operations console.
+
+## Checkout And Payment Boundary
+
+The operations console now uses a checkout-session flow instead of creating an order directly from the first button click. Starting checkout creates a 15-minute `checkout_session`, a stable `PENDING_PAYMENT` order, and one active business payment attempt. Refreshing the console restores the same checkout session from `localStorage` and `GET /api/checkout-sessions/{id}` instead of generating a new payment idempotency key in the browser.
+
+The payment model separates four identifiers:
+
+- `orderId`: the long-lived business order identity.
+- `paymentAttemptId`: the business identity for the current simulated authorization attempt.
+- `idempotencyKey`: the backend-derived duplicate-protection key for the authorize operation, currently `authorize:{paymentAttemptId}`.
+- `requestAttemptId`: the observability identity for each physical confirm HTTP call or retry.
+
+PostgreSQL is the source of truth for payment attempts and request-attempt logs. The request hash is stored as an opaque SHA-256 fingerprint on first logical confirm; deeper provider-payload conflict policy is intentionally left for a future real payment-provider integration. Payment method switching, failed-payment retry orchestration, and real payment gateways are also outside the current implementation.
+
+Confirming checkout transitions the order from `PENDING_PAYMENT` to `CREATED`, marks the payment attempt `AUTHORIZED`, records the physical request attempt, and writes the `ORDER_CREATED` outbox event in the same transaction. A repeated confirm for the same payment attempt records a new request attempt as `REPLAYED` but does not create another business payment attempt or outbox event. A simulated gateway response timeout records the request attempt as `TIMEOUT`, keeps the business payment attempt `INITIATED`, and lets the next confirm retry reuse the same backend-derived idempotency key.
 
 ## Outbox And Recovery Flow
 
@@ -50,7 +69,7 @@ sequenceDiagram
     participant Worker as Event Consumer
     participant DLQ as Dead-letter Table
 
-API->>DB: Save order and outbox event in one transaction
+API->>DB: Confirm checkout, save order state, and save outbox event in one transaction
 Outbox->>DB: Read pending outbox events from order-worker
 Outbox->>Kafka: Publish event
     Outbox->>DB: Mark event published
