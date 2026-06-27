@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 public class FailureInjectionService {
 
     private final Map<UUID, Integer> paymentFailuresByOrderId = new HashMap<>();
+    private final Map<UUID, Integer> gatewayTimeoutsByPaymentAttemptId = new HashMap<>();
     private final Map<UUID, String> consumerFailuresByEventId = new HashMap<>();
 
     /**
@@ -35,6 +36,15 @@ public class FailureInjectionService {
     }
 
     /**
+     * Configures one simulated payment gateway response timeout.
+     *
+     * @param paymentAttemptId payment attempt id
+     */
+    public synchronized void failNextPaymentGatewayResponse(UUID paymentAttemptId) {
+        gatewayTimeoutsByPaymentAttemptId.put(paymentAttemptId, 1);
+    }
+
+    /**
      * Throws an injected payment timeout when configured.
      *
      * @param orderId order id
@@ -54,6 +64,26 @@ public class FailureInjectionService {
     }
 
     /**
+     * Returns whether the next payment gateway response should time out.
+     *
+     * @param paymentAttemptId payment attempt id
+     * @return whether timeout should be simulated
+     */
+    public synchronized boolean consumeGatewayTimeout(UUID paymentAttemptId) {
+        Integer remainingFailures = gatewayTimeoutsByPaymentAttemptId.get(paymentAttemptId);
+        if (remainingFailures == null || remainingFailures <= 0) {
+            return false;
+        }
+
+        if (remainingFailures == 1) {
+            gatewayTimeoutsByPaymentAttemptId.remove(paymentAttemptId);
+        } else {
+            gatewayTimeoutsByPaymentAttemptId.put(paymentAttemptId, remainingFailures - 1);
+        }
+        return true;
+    }
+
+    /**
      * Throws an injected consumer crash when configured.
      *
      * @param eventId outbox event id
@@ -70,6 +100,7 @@ public class FailureInjectionService {
      */
     public synchronized void clear() {
         paymentFailuresByOrderId.clear();
+        gatewayTimeoutsByPaymentAttemptId.clear();
         consumerFailuresByEventId.clear();
     }
 }

@@ -4,5 +4,8 @@ package com.orderflow.payment;
  * Result states for simulated payment attempts.
  */
 public enum PaymentStatus {
-    AUTHORIZED
+    INITIATED,
+    AUTHORIZED,
+    FAILED,
+    EXPIRED
 }

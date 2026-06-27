@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "./api/client";
 import { queryKeys } from "./api/queryKeys";
 import type {
+  CheckoutSessionResponse,
   DeadLetterEventResponse,
   InventoryItemResponse,
   OperationsHealthResponse,
@@ -31,6 +32,7 @@ const views: Array<{ id: ViewId; label: string }> = [
   { id: "failed-events", label: "Failed events" },
   { id: "health", label: "Health" }
 ];
+const ACTIVE_CHECKOUT_SESSION_KEY = "orderflow.activeCheckoutSessionId";
 
 export function App() {
   const [activeView, setActiveView] = useState<ViewId>("orders");
@@ -49,9 +51,11 @@ export function App() {
   const [seedError, setSeedError] = useState("");
   const [retryError, setRetryError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isConfirmingCheckout, setIsConfirmingCheckout] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [retryingId, setRetryingId] = useState("");
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [activeCheckout, setActiveCheckout] = useState<CheckoutSessionResponse>();
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order.orderId === selectedOrderId),
@@ -121,6 +125,27 @@ export function App() {
     }
   }, [refreshConsole]);
 
+  const restoreActiveCheckout = useCallback(async () => {
+    const checkoutSessionId = localStorage.getItem(ACTIVE_CHECKOUT_SESSION_KEY);
+    if (checkoutSessionId === null) {
+      return;
+    }
+
+    try {
+      const checkout = await apiClient.getCheckoutSession(checkoutSessionId);
+      if (checkout.status === "ACTIVE") {
+        setActiveCheckout(checkout);
+        setSelectedOrderId(checkout.order.orderId);
+      } else {
+        localStorage.removeItem(ACTIVE_CHECKOUT_SESSION_KEY);
+        setActiveCheckout(checkout);
+      }
+    } catch {
+      localStorage.removeItem(ACTIVE_CHECKOUT_SESSION_KEY);
+      setActiveCheckout(undefined);
+    }
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -128,6 +153,7 @@ export function App() {
       setIsLoading(true);
       try {
         await refreshConsole();
+        await restoreActiveCheckout();
       } catch (error) {
         if (isMounted) {
           setLoadError(error instanceof Error ? error.message : "Unable to load console data.");
@@ -143,7 +169,7 @@ export function App() {
     return () => {
       isMounted = false;
     };
-  }, [refreshConsole]);
+  }, [refreshConsole, restoreActiveCheckout]);
 
   useEffect(() => {
     if (selectedOrderId === "") {
@@ -174,29 +200,49 @@ export function App() {
     return () => eventSource.close();
   }, [refreshConsole]);
 
-  async function createOrder(payload: {
+  async function startCheckout(payload: {
     customerId: string;
     sku: string;
     quantity: number;
-    idempotencyKey: string;
   }) {
     setIsCreating(true);
     setCreateError("");
     try {
-      const order = await apiClient.createOrder(
-        {
-          customerId: payload.customerId,
-          items: [{ sku: payload.sku, quantity: payload.quantity }]
-        },
-        payload.idempotencyKey
-      );
-      setSelectedOrderId(order.orderId);
+      const checkout = await apiClient.createCheckoutSession({
+        customerId: payload.customerId,
+        items: [{ sku: payload.sku, quantity: payload.quantity }]
+      });
+      localStorage.setItem(ACTIVE_CHECKOUT_SESSION_KEY, checkout.checkoutSessionId);
+      setActiveCheckout(checkout);
+      setSelectedOrderId(checkout.order.orderId);
+      await refreshConsole();
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "Unable to start checkout.");
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  async function confirmCheckout() {
+    if (activeCheckout === undefined) {
+      return;
+    }
+
+    setIsConfirmingCheckout(true);
+    setCreateError("");
+    try {
+      const checkout = await apiClient.confirmCheckoutSession(activeCheckout.checkoutSessionId, {
+        mockPaymentToken: "mock-console-token"
+      });
+      localStorage.removeItem(ACTIVE_CHECKOUT_SESSION_KEY);
+      setActiveCheckout(checkout);
+      setSelectedOrderId(checkout.order.orderId);
       setActiveView("timeline");
       await refreshConsole();
     } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "Unable to create order.");
+      setCreateError(error instanceof Error ? error.message : "Unable to confirm checkout.");
     } finally {
-      setIsCreating(false);
+      setIsConfirmingCheckout(false);
     }
   }
 
@@ -278,15 +324,18 @@ export function App() {
             statusFilter={statusFilter}
             search={search}
             createError={createError}
+            activeCheckout={activeCheckout}
             loadError={sectionErrors.orders}
             isCreating={isCreating}
+            isConfirmingCheckout={isConfirmingCheckout}
             onStatusFilterChange={setStatusFilter}
             onSearchChange={setSearch}
             onSelectOrder={(orderId) => {
               setSelectedOrderId(orderId);
               setActiveView("timeline");
             }}
-            onCreateOrder={createOrder}
+            onStartCheckout={startCheckout}
+            onConfirmCheckout={confirmCheckout}
             onRefresh={handleRefresh}
           />
         ) : null}

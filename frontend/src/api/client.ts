@@ -1,4 +1,7 @@
 import type {
+  CheckoutSessionResponse,
+  ConfirmCheckoutRequest,
+  CreateCheckoutSessionRequest,
   CreateOrderRequest,
   DeadLetterEventResponse,
   InventoryItemResponse,
@@ -77,6 +80,27 @@ export const apiClient = {
       headers: {
         "Idempotency-Key": idempotencyKey
       }
+    });
+  },
+
+  createCheckoutSession(payload: CreateCheckoutSessionRequest): Promise<CheckoutSessionResponse> {
+    return request<CheckoutSessionResponse>("/checkout-sessions", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  getCheckoutSession(checkoutSessionId: string): Promise<CheckoutSessionResponse> {
+    return request<CheckoutSessionResponse>(`/checkout-sessions/${checkoutSessionId}`);
+  },
+
+  confirmCheckoutSession(
+    checkoutSessionId: string,
+    payload: ConfirmCheckoutRequest
+  ): Promise<CheckoutSessionResponse> {
+    return request<CheckoutSessionResponse>(`/checkout-sessions/${checkoutSessionId}/confirm`, {
+      method: "POST",
+      body: JSON.stringify(payload)
     });
   },
 

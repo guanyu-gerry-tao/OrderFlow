@@ -10,6 +10,8 @@ OrderFlow currently has a Spring Boot backend foundation with correctness contro
 - The current runnable runtime depends on PostgreSQL, Redis, and Redpanda.
 - The backend can run as `order-api`, `order-worker`, or backward-compatible `all` mode through `ORDERFLOW_RUNTIME_ROLE`.
 - PostgreSQL remains the source of truth for idempotency records; Redis is a short-lived response cache.
+- The console default flow uses `/api/checkout-sessions`: start checkout creates a `PENDING_PAYMENT` order and backend-derived payment idempotency key, while confirm payment transitions the order to `CREATED` and starts the outbox workflow.
+- `POST /api/orders` remains available for benchmark/API compatibility and still uses the order-creation `Idempotency-Key` boundary.
 - The default event mode is `outbox-kafka`; direct synchronous processing is kept for tests and benchmark-style comparison only.
 - Outbox and DLQ metadata are stored in PostgreSQL so retry state is visible even when event processing fails.
 - The console calls backend APIs through `frontend/src/api/` and uses SSE for live health snapshots.
@@ -39,6 +41,8 @@ OrderFlow currently has a Spring Boot backend foundation with correctness contro
 - M4 frontend tests cover page-level error fallback, loading/empty/error/retry UI states, order timeline navigation, and manual retry.
 - M4 Playwright tests cover browser workflows for order creation to timeline and failed-event manual retry.
 - M5 benchmark smoke covers JSON and Markdown report generation for correctness and async reliability suites.
+- M8 backend tests cover checkout session creation, 15-minute TTL, duplicate confirm replay, gateway response timeout retry, expired checkout conflict, legacy order idempotency compatibility, and one outbox event after checkout confirm.
+- M8 frontend tests cover checkout session start, active session restore after reload, backend-derived payment idempotency key display, and repeated confirm calls that keep the same payment attempt while request attempts change.
 - On Docker Desktop for macOS, `DOCKER_HOST=unix://$HOME/.docker/run/docker.sock ./gradlew test --no-daemon` may be needed when the default socket is not detected.
 - Keep benchmark and comparison modes runnable in the current codebase when they are used to prove an engineering mechanism.
 - Baseline modes should stay isolated to test, benchmark, or evaluation profiles. Default runtime paths should use the improved implementation.
@@ -90,6 +94,13 @@ The direct mode is not the normal runtime path. It exists so the synchronous M1/
 ## Operations Console
 
 The console is a Vite React TypeScript app under `frontend/`. Its local development server defaults to `http://localhost:5173` and calls the backend at `http://localhost:8080/api`.
+
+The order workflow in the console is intentionally two-step:
+
+1. `Start checkout` calls `POST /api/checkout-sessions`, stores the returned checkout session id in browser storage, and displays the stable pending order, payment attempt, and backend-derived authorize idempotency key.
+2. `Confirm payment` calls `POST /api/checkout-sessions/{checkoutSessionId}/confirm`. The backend creates a new request-attempt log for each HTTP call, reuses the same business payment attempt for retries, and only enqueues the order workflow after authorization succeeds.
+
+Refreshing the console during an active checkout uses the stored checkout session id to restore the same pending order. The browser does not generate payment idempotency keys.
 
 Run the console locally:
 

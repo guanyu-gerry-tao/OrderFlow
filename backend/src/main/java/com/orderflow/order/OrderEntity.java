@@ -41,6 +41,9 @@ public class OrderEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<OrderItemEntity> items = new ArrayList<>();
 
@@ -57,6 +60,21 @@ public class OrderEntity {
         this.status = OrderStatus.CREATED;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
+    }
+
+    /**
+     * Creates a new order waiting for payment confirmation.
+     *
+     * @param customerId customer identifier
+     * @param expiresAt payment deadline
+     * @return pending payment order
+     */
+    public static OrderEntity pendingPayment(String customerId, Instant expiresAt) {
+        OrderEntity order = new OrderEntity(customerId);
+        order.status = OrderStatus.PENDING_PAYMENT;
+        order.expiresAt = expiresAt;
+        order.updatedAt = Instant.now();
+        return order;
     }
 
     /**
@@ -123,6 +141,15 @@ public class OrderEntity {
      */
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    /**
+     * Returns the payment deadline for pending orders.
+     *
+     * @return expiration timestamp
+     */
+    public Instant getExpiresAt() {
+        return expiresAt;
     }
 
     /**

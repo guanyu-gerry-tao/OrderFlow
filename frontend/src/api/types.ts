@@ -1,10 +1,16 @@
 export type OrderStatus =
+  | "PENDING_PAYMENT"
   | "CREATED"
   | "INVENTORY_RESERVED"
   | "PAYMENT_AUTHORIZED"
   | "COMPLETED"
   | "FAILED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "EXPIRED";
+
+export type CheckoutSessionStatus = "ACTIVE" | "CONFIRMED" | "EXPIRED" | "CANCELLED";
+export type PaymentStatus = "INITIATED" | "AUTHORIZED" | "FAILED" | "EXPIRED";
+export type PaymentRequestAttemptStatus = "INITIATED" | "AUTHORIZED" | "REPLAYED" | "TIMEOUT" | "FAILED" | "EXPIRED";
 
 export type DeadLetterStatus = "OPEN" | "REPLAYED";
 
@@ -83,6 +89,36 @@ export interface CreateOrderRequest {
     sku: string;
     quantity: number;
   }>;
+}
+
+export interface CreateCheckoutSessionRequest {
+  customerId: string;
+  items: Array<{
+    sku: string;
+    quantity: number;
+  }>;
+}
+
+export interface ConfirmCheckoutRequest {
+  mockPaymentToken: string;
+}
+
+export interface PaymentAttemptResponse {
+  paymentAttemptId: string;
+  idempotencyKey: string;
+  status: PaymentStatus;
+  expiresAt: string;
+}
+
+export interface CheckoutSessionResponse {
+  checkoutSessionId: string;
+  status: CheckoutSessionStatus;
+  order: OrderResponse;
+  paymentAttempt: PaymentAttemptResponse;
+  requestAttemptId: string | null;
+  requestAttemptStatus: PaymentRequestAttemptStatus | null;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface SeedInventoryRequest {

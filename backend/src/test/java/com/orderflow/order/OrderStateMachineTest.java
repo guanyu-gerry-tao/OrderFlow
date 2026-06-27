@@ -11,6 +11,8 @@ class OrderStateMachineTest {
     void allowsTheHappyPathTransitions() {
         OrderStateMachine stateMachine = new OrderStateMachine();
 
+        assertThatCode(() -> stateMachine.validateTransition(OrderStatus.PENDING_PAYMENT, OrderStatus.CREATED))
+                .doesNotThrowAnyException();
         assertThatCode(() -> stateMachine.validateTransition(OrderStatus.CREATED, OrderStatus.INVENTORY_RESERVED))
                 .doesNotThrowAnyException();
         assertThatCode(() -> stateMachine.validateTransition(OrderStatus.INVENTORY_RESERVED, OrderStatus.PAYMENT_AUTHORIZED))
@@ -46,6 +48,8 @@ class OrderStateMachineTest {
         assertThatCode(() -> stateMachine.validateTransition(OrderStatus.CREATED, OrderStatus.FAILED))
                 .doesNotThrowAnyException();
         assertThatCode(() -> stateMachine.validateTransition(OrderStatus.INVENTORY_RESERVED, OrderStatus.CANCELLED))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> stateMachine.validateTransition(OrderStatus.PENDING_PAYMENT, OrderStatus.EXPIRED))
                 .doesNotThrowAnyException();
     }
 }
